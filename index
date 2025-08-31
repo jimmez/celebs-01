@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Celeb Slideshow — Random Photo Fetcher</title>
-  <meta name="description" content="Hands‑free slideshow that auto‑fetches celebrity photos from Wikidata/Commons with precise keyboard mapping, swipe, speed controls, category presets (Beatles, CEOs, models by decades, film/cartoon characters), random/fixed modes, and a fixed selection engine." />
+  <meta name="description" content="Slideshow that auto‑fetches celebrity photos from Wikidata/Commons with solid fetch reliability (POST + CORS), precise keyboard mapping, presets (Beatles, CEOs, models by decades, film/cartoon characters), and random/fixed modes." />
   <style>
     :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; }
     *{box-sizing:border-box}
@@ -64,8 +64,7 @@
     .quickRow{display:flex; gap:8px; flex-wrap:wrap}
     .quickBtn{padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
 
-    /* Page 3 note */
-    .note{font-size:14px; color:var(--muted); padding:10px 12px}
+    .debug{position:fixed; left:12px; bottom:12px; font-size:11px; color:#9fb7d6; opacity:.7}
   </style>
 </head>
 <body>
@@ -82,7 +81,7 @@
       <label>Seconds
         <input type="number" id="secs" min="0.1" max="10" step="0.1" value="2" />
       </label>
-      <button class="btn ok" id="openBuilder">⚙️ Terms</button>
+      <button class="btn ok" id="openBuilder">⚙️ Categories</button>
     </div>
   </header>
 
@@ -106,8 +105,7 @@
 
     <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
       <div class="builder">
-        <div class="hint">Click terms to select (blue). Triple‑click to edit a label. Selected terms are the ONLY ones shown. Applying selection clears the photo cache so only the new categories appear.
-        </div>
+        <div class="hint">Click categories to select (blue). Triple‑click to rename a tile. Selected categories are the ONLY ones shown. Applying selection clears the photo cache so only the new categories appear.</div>
         <div class="grid" id="termGrid"></div>
         <div class="builderActions">
           <input type="text" id="customTerm" placeholder="Add a custom term… e.g. 'Swedish politicians'" />
@@ -123,7 +121,6 @@
     </section>
 
     <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
-      <p class="note">Page 3 is available if you add many custom categories—the grid will flow here too so nothing is cramped.</p>
       <div class="builder">
         <div class="grid" id="termGrid2"></div>
       </div>
@@ -151,6 +148,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <div class="debug" id="debug"></div>
 
 <script>
 (function(){
@@ -185,6 +183,7 @@
   const toast = document.getElementById('toast');
   const speedFab = document.getElementById('speedFab');
   const speedDrawer = document.getElementById('speedDrawer');
+  const debug = document.getElementById('debug');
 
   // State
   let items = []; // { name, imageUrl, fileTitle, itemUrl }
@@ -194,17 +193,11 @@
   let lastKeyTime = 0;
   let fixedOrder = false; // false = random shuffle, true = fixed sequence
 
-  // --- Category builders --------------------------------------------------
-  // Helpers to build SPARQL blocks per category
-  function blockHumanWithImage(lines){
-    return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . }`;
-  }
-  function blockFictionalWithImage(lines){
-    return `{ ?person wdt:P18 ?image . ${lines.join(' ')} }`;
-  }
+  // --- Category builders (exact presets) -------------------------------
+  function blockHumanWithImage(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . }`; }
+  function blockFictionalWithImage(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} }`; }
 
   const CATEGORY_BLOCKS = {
-    // Requested presets
     'Beatles': () => blockHumanWithImage([ 'wdt:P463 wd:Q1299 ;' ]), // member of The Beatles
     'Norwegian celebs': () => blockHumanWithImage([ 'wdt:P27 wd:Q20 ;' ]),
     'US celebs': () => blockHumanWithImage([ 'wdt:P27 wd:Q30 ;' ]),
@@ -213,24 +206,24 @@
     'US ceo': () => blockHumanWithImage([ 'wdt:P27 wd:Q30 ;', 'wdt:P39 wd:Q484876 ;' ]),
     'World ceo': () => blockHumanWithImage([ 'wdt:P39 wd:Q484876 ;' ]),
     'Music producers': () => blockHumanWithImage([ 'wdt:P106 wd:Q183945 ;' ]), // record producer
-    "Models of the 50's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && YEAR(?start) <= 1959) || (BOUND(?end) && YEAR(?end) >= 1950) ) }`,
-    "Models of the 80's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && YEAR(?start) <= 1989) || (BOUND(?end) && YEAR(?end) >= 1980) ) }`,
+    "Models of the 50's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1959) || (BOUND(?end) && year(?end) >= 1950) || (!BOUND(?start) && !BOUND(?end)) ) }`,
+    "Models of the 80's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1989) || (BOUND(?end) && year(?end) >= 1980) || (!BOUND(?start) && !BOUND(?end)) ) }`,
     'famous movie characters': () => blockFictionalWithImage([ ' ?person wdt:P31 wd:Q15773347 . ' ]), // film character
     'famous cartoon characters': () => blockFictionalWithImage([ ' { ?person wdt:P31 wd:Q15711870 . } UNION { ?person wdt:P31 wd:Q373494 . } ' ]), // animated or cartoon character
   };
 
-  // Heuristic fallback (country/role)
+  // Heuristic fallback (country/role words)
   const countryMap = { 'norwegian':'Q20','norway':'Q20','swedish':'Q34','sweden':'Q34','danish':'Q35','denmark':'Q35','finnish':'Q33','finland':'Q33','icelandic':'Q189','iceland':'Q189','british':'Q145','uk':'Q145','english':'Q21','scottish':'Q22','irish':'Q27','french':'Q142','german':'Q183','spanish':'Q29','italian':'Q38','american':'Q30','us':'Q30','canadian':'Q16','indian':'Q668','japanese':'Q17','korean':'Q884','brazilian':'Q155' };
   const roleMap = { 'actor':'Q33999','actors':'Q33999','actress':'Q33999','film actors':'Q33999','movie stars':'Q33999','musician':'Q639669','musicians':'Q639669','singer':'Q177220','singers':'Q177220','record producer':'Q183945','producer':'Q183945','comedian':'Q245068','comedians':'Q245068','writer':'Q36180','writers':'Q36180','politician':'Q82955','politicians':'Q82955','footballer':'Q937857','footballers':'Q937857','director':'Q2526255','film directors':'Q2526255','tv presenters':'Q947873','youtubers':'Q1931868','influencers':'Q20074590','model':'Q4610556','models':'Q4610556' };
 
   function buildSPARQLFromTerms(terms){
     const blocks = [];
     terms.forEach(t => {
-      const key = t.trim().toLowerCase();
-      const pretty = t.trim();
-      const custom = CATEGORY_BLOCKS[pretty] || CATEGORY_BLOCKS[capitalize(key)] || CATEGORY_BLOCKS[pretty.replace(/celbs/i,'celebs')];
-      if (custom) { blocks.push(custom()); return; }
-      // fall back to heuristic
+      const label = (t || '').trim();
+      const fixed = CATEGORY_BLOCKS[label] || CATEGORY_BLOCKS[label.replace(/celbs/i,'celebs')];
+      if (fixed) { blocks.push(fixed()); return; }
+      // fallback heuristic
+      const key = label.toLowerCase();
       let countryQ=null, roleQ=null; Object.keys(countryMap).forEach(k=>{ if(key.includes(k)) countryQ = countryQ || countryMap[k]; }); Object.keys(roleMap).forEach(k=>{ if(key.includes(k)) roleQ = roleQ || roleMap[k]; });
       const parts = ['?person wdt:P31 wd:Q5 ;'];
       if(countryQ) parts.push(` wdt:P27 wd:${countryQ} ;`);
@@ -242,15 +235,38 @@
     return `SELECT ?person ?personLabel ?image WHERE {\n${union}\nSERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }\n}\nLIMIT 1000`;
   }
 
-  function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+  async function sparqlQuery(query){
+    // Use POST to avoid URL-length issues and improve reliability
+    const endpoint = 'https://query.wikidata.org/sparql';
+    debug.textContent = 'Running query…';
+    const body = new URLSearchParams();
+    body.set('query', query);
+    try{
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/sparql-results+json',
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        },
+        body
+      });
+      if(!res.ok){ throw new Error('WDQS HTTP '+res.status); }
+      const data = await res.json();
+      return data;
+    }catch(err){
+      debug.textContent = 'Query failed: '+ err.message;
+      throw err;
+    }
+  }
 
   async function fetchWDFromTerms(terms){
     const sparql = buildSPARQLFromTerms(terms);
-    const url = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(sparql);
-    const res = await fetch(url, { headers: { 'Accept':'application/sparql-results+json' } });
-    if(!res.ok) throw new Error('Wikidata error '+res.status);
-    const data = await res.json();
-    return data.results.bindings.map(r=>{
+    debug.textContent = 'Query built ('+terms.length+' categories).';
+    const data = await sparqlQuery(sparql);
+    const rows = data.results.bindings || [];
+    if(!rows.length){ debug.textContent = 'No rows returned.'; }
+    return rows.map(r=>{
       const name = r.personLabel?.value || 'Unknown';
       const imageField = r.image?.value || '';
       let imageUrl = imageField;
@@ -285,7 +301,7 @@
 
   function clearImage(){ wrap.innerHTML = '<div class="hint">Loading…</div>'; }
 
-  async function showIndex(i){ if(!items.length) return; currIndex = (i + items.length) % items.length; const it = items[currIndex]; clearImage(); const img = new Image(); img.className='photo'; img.decoding='async'; img.onload = async ()=>{ wrap.innerHTML=''; wrap.appendChild(img); personName.innerHTML = `<a href="${it.itemUrl}" target="_blank" rel="noopener" style="color:var(--fg); text-decoration:none">${it.name}</a>`; const { artist, credit, license, filePageUrl } = await fetchAttribution(it.fileTitle); const creditText = artist || credit || ''; caption.innerHTML = `${creditText ? creditText + ' • ' : ''}<a href="${filePageUrl}" target="_blank" rel="noopener">${it.fileTitle}</a>${license? ' • License: '+license : ''}`; downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,''); }; img.onerror = ()=>{ showToast('Skipped an image that failed to load'); next(); }; img.src = it.imageUrl; }
+  async function showIndex(i){ if(!items.length) return; currIndex = (i + items.length) % items.length; const it = items[currIndex]; clearImage(); const img = new Image(); img.className='photo'; img.decoding='async'; img.onload = async ()=>{ wrap.innerHTML=''; wrap.appendChild(img); personName.innerHTML = `<a href="${it.itemUrl}" target="_blank" rel="noopener" style="color:var(--fg); text-decoration:none">${it.name}</a>`; const { artist, credit, license, filePageUrl } = await fetchAttribution(it.fileTitle); const creditText = artist || credit || ''; caption.innerHTML = `${creditText ? creditText + ' • ' : ''}<a href="${filePageUrl}" target="_blank" rel="noopener">${it.fileTitle}</a>${license? ' • License: '+license : ''}`; downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,''); }; img.onerror = ()=>{ toast.textContent='Skipped an image that failed to load'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1500); next(); }; img.src = it.imageUrl; }
 
   function next(){ showIndex((currIndex + 1) % items.length); }
   function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
@@ -300,14 +316,15 @@
     // Clear cache + items when applying new selection
     items = []; currIndex = -1; wrap.innerHTML = '<div class="hint">Applying selection…</div>'; countBadge.textContent = 'Fetching…';
     const chosen = collectSelectedTerms();
-    if(!chosen.length){ showToast('Select one or more terms first.'); return; }
+    if(!chosen.length){ toast.textContent='Select one or more categories first.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1500); return; }
     try{
       let data = await fetchWDFromTerms(chosen);
-      if(!fixedOrder) data = shuffle(data);
+      if(!fixedOrder) data = data.sort(()=>Math.random()-0.5);
       items = data; countBadge.textContent = `${items.length} photos`;
-      if(!items.length){ wrap.innerHTML = '<div class="hint">No results. Try different terms.</div>'; return; }
+      if(!items.length){ wrap.innerHTML = '<div class="hint">No results. Try different categories.</div>'; return; }
       showIndex(0); startAutoplay();
-    }catch(e){ console.error(e); wrap.innerHTML='<div class="hint">Error fetching photos.</div>'; countBadge.textContent='0'; }
+      debug.textContent = 'Loaded '+items.length+' photos.';
+    }catch(e){ console.error(e); wrap.innerHTML='<div class="hint">Error fetching photos (see bottom-left). Try again.</div>'; countBadge.textContent='0'; }
   }
 
   function collectSelectedTerms(){
@@ -317,14 +334,7 @@
   }
 
   // Tabs
-  function setPage(idx){
-    page1.classList.toggle('active', idx===1);
-    page2.classList.toggle('active', idx===2);
-    page3.classList.toggle('active', idx===3);
-    tab1.setAttribute('aria-selected', String(idx===1));
-    tab2.setAttribute('aria-selected', String(idx===2));
-    tab3.setAttribute('aria-selected', String(idx===3));
-  }
+  function setPage(idx){ page1.classList.toggle('active', idx===1); page2.classList.toggle('active', idx===2); page3.classList.toggle('active', idx===3); tab1.setAttribute('aria-selected', String(idx===1)); tab2.setAttribute('aria-selected', String(idx===2)); tab3.setAttribute('aria-selected', String(idx===3)); }
   tab1.addEventListener('click', ()=> setPage(1));
   tab2.addEventListener('click', ()=> setPage(2));
   tab3.addEventListener('click', ()=> setPage(3));
@@ -392,11 +402,7 @@
       'Beatles', 'Norwegian celebs', 'US celebs', 'Norwegian politicians', 'Norwegian ceo', 'US ceo', 'World ceo', 'Music producers', "Models of the 50's", "Models of the 80's", 'famous movie characters', 'famous cartoon characters',
       'Norwegian actors','Norwegian musicians','Norwegian comedians','Norwegian writers', 'UK celebrity','British actors','German footballers','50s movie stars'
     ];
-    presets.forEach((p, idx)=>{
-      const gridEl = idx < 16 ? termGrid : termGrid2; // overflow to page 3
-      makeTermButton(p, gridEl);
-    });
-    // Ensure at least 25 total visible buttons across grids
+    presets.forEach((p, idx)=>{ const gridEl = idx < 16 ? termGrid : termGrid2; makeTermButton(p, gridEl); });
     while(termGrid.querySelectorAll('.termBtn').length + termGrid2.querySelectorAll('.termBtn').length < 25){ makeTermButton('Custom term', termGrid2); }
   }
 
@@ -404,8 +410,8 @@
   clearSelBtn.addEventListener('click', ()=>{ [...termGrid.querySelectorAll('.termBtn.selected'), ...termGrid2.querySelectorAll('.termBtn.selected')].forEach(b=> b.classList.remove('selected')); items=[]; currIndex=-1; wrap.innerHTML = '<div class="hint">Selection cleared.</div>'; countBadge.textContent='0'; stopAutoplay(); });
   applyBtn.addEventListener('click', ()=>{ setPage(1); applySelection(); });
 
-  modeRandom.addEventListener('click', ()=>{ setMode(false); showToast('Mode: Random photos'); if(items.length){ items = items.sort(()=>Math.random()-0.5); currIndex = -1; showIndex(0); } });
-  modeFixed.addEventListener('click', ()=>{ setMode(true); showToast('Mode: Same sequence'); });
+  modeRandom.addEventListener('click', ()=>{ setMode(false); toast.textContent='Mode: Random photos'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); if(items.length){ items = items.sort(()=>Math.random()-0.5); currIndex = -1; showIndex(0); } });
+  modeFixed.addEventListener('click', ()=>{ setMode(true); toast.textContent='Mode: Same sequence'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); });
 
   // Init
   populateDefaults();
