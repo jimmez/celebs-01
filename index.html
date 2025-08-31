@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Celeb Slideshow — Random Photo Fetcher</title>
+  <meta name="description" content="Slideshow that auto‑fetches celebrity photos from Wikidata/Commons with solid fetch reliability (POST + CORS), precise keyboard mapping, presets (Beatles, CEOs, models by decades, film/cartoon characters), and random/fixed modes." />
+  <style>
+    :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto 1fr auto}
+    header{display:flex; gap:12px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:40; background:rgba(2,6,23,.6); backdrop-filter:blur(8px) saturate(1.2); border-bottom:1px solid rgba(255,255,255,.06)}
+    h1{font-size:16px; margin:0}
+    .sp{flex:1}
+    .btn{display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; user-select:none; font-weight:600}
+    .btn[disabled]{opacity:.5;cursor:not-allowed}
+    .btn.primary{border-color:rgba(96,165,250,.5)}
+    .btn.ok{border-color:rgba(52,211,153,.45)}
+    .btn.warn{border-color:rgba(251,191,36,.45)}
+    .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
+    .controls{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+    label{font-size:12px; color:var(--muted)}
+    input[type="range"], input[type="number"], select, input[type="text"] { appearance:none; -webkit-appearance:none; color:var(--fg); background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); border-radius:10px; padding:8px 10px; font-weight:600 }
+    input[type="range"]{width:160px}
+    input[type="number"]{width:80px}
+
+    .tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:rgba(2,6,23,.35)}
+    .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer}
+    .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.5)}
+
+    .page{display:none; height:100%}
+    .page.active{display:block}
+
+    .stage{position:relative; height:calc(100vh - 210px); min-height:360px; overflow:hidden; display:grid; place-items:center}
+    .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center}
+    img.photo{max-width:85%; max-height:80%; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6)}
+
+    .nameBar{position:absolute; left:12px; right:12px; bottom:12px; background:rgba(2,6,23,.78); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 10px; cursor:pointer}
+    .nameBar.collapsed{height:18px; overflow:hidden}
+    .title{font-size:18px; font-weight:800}
+    .caption{font-size:13px; color:var(--muted)}
+    .hint{font-size:12px; color:#93a3b8}
+
+    .nameToggle{position:absolute; left:50%; transform:translateX(-50%); bottom:64px; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:#1f2a44; color:#e5eef7; font-weight:700; cursor:pointer}
+
+    .builder{padding:12px}
+    .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
+    .termBtn{padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.12); cursor:pointer; text-align:left; user-select:none}
+    .termBtn.selected{outline:2px solid var(--accent); background:rgba(96,165,250,.15)}
+    .termBtn.editing{outline:2px dashed var(--warn)}
+
+    .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
+
+    footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); border-top:1px solid rgba(255,255,255,.06)}
+    footer a{color:var(--ok); text-decoration:none}
+
+    .toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none}
+
+    /* Floating blue button + drawer */
+    .fab{position:fixed; right:16px; bottom:16px; width:56px; height:56px; border-radius:50%; background:#3b82f6; color:white; display:grid; place-items:center; font-size:22px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,.35); z-index:60}
+    .drawer{position:fixed; left:0; right:0; bottom:-140px; background:rgba(15,23,42,.96); border-top:1px solid rgba(255,255,255,.08); padding:12px; display:grid; gap:10px; transition:bottom .25s ease; z-index:55}
+    .drawer.open{bottom:0}
+    .quickRow{display:flex; gap:8px; flex-wrap:wrap}
+    .quickBtn{padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
+
+    .debug{position:fixed; left:12px; bottom:12px; font-size:11px; color:#9fb7d6; opacity:.7}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🎞️ Celeb Slideshow</h1>
+    <span class="badge" id="countBadge">Loading…</span>
+    <div class="sp"></div>
+    <div class="controls">
+      <button class="btn primary" id="playPauseBtn" title="Toggle autoplay">⏸︎ Pause</button>
+      <button class="btn" id="nextBtn" title="Next photo">→ Next</button>
+      <label>Speed
+        <input type="range" id="speed" min="0.1" max="10" step="0.1" value="2" />
+      </label>
+      <label>Seconds
+        <input type="number" id="secs" min="0.1" max="10" step="0.1" value="2" />
+      </label>
+      <button class="btn ok" id="openBuilder">⚙️ Categories</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-controls="page1" aria-selected="true" id="tab1">Page 1: Slideshow</button>
+    <button class="tab" role="tab" aria-controls="page2" aria-selected="false" id="tab2">Page 2: Categories</button>
+    <button class="tab" role="tab" aria-controls="page3" aria-selected="false" id="tab3">Page 3: More</button>
+  </nav>
+
+  <main>
+    <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
+      <div class="stage" id="stage">
+        <div class="imgwrap" id="imgwrap"><div class="hint">Fetching photos…</div></div>
+        <div class="nameBar" id="nameBar">
+          <div class="title" id="personName">&nbsp;</div>
+          <div class="caption" id="caption"><span class="hint">Tap to show/hide name & credit</span></div>
+        </div>
+        <button class="nameToggle" id="nameToggle">Hide name</button>
+      </div>
+    </section>
+
+    <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
+      <div class="builder">
+        <div class="hint">Click categories to select (blue). Triple‑click to rename a tile. Selected categories are the ONLY ones shown. Applying selection clears the photo cache so only the new categories appear.</div>
+        <div class="grid" id="termGrid"></div>
+        <div class="builderActions">
+          <input type="text" id="customTerm" placeholder="Add a custom term… e.g. 'Swedish politicians'" />
+          <button class="btn ok" id="addTerm">Add</button>
+          <button class="btn primary" id="applyBtn">Apply selection</button>
+          <button class="btn warn" id="clearSelBtn">Clear selection</button>
+          <span class="hint">Mode:</span>
+          <button class="btn" id="modeRandom" aria-pressed="true">Random photos</button>
+          <button class="btn" id="modeFixed" aria-pressed="false">Same sequence</button>
+          <span class="hint" id="resolveHint"></span>
+        </div>
+      </div>
+    </section>
+
+    <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
+      <div class="builder">
+        <div class="grid" id="termGrid2"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div>Keyboard on PC: Right‑side keys → <strong>Next</strong> (except <kbd>P</kbd> = play/pause). Left‑side keys → <strong>Previous</strong> (except <kbd>S</kbd> = show/hide name). <kbd>Space</kbd> = play/pause. Arrows also work. While typing/renaming, hotkeys are disabled.</div>
+    <div class="sp"></div>
+    <a href="#" id="downloadLink" title="Download current image">Download</a>
+  </footer>
+
+  <!-- Floating blue button to toggle quick time buttons -->
+  <button class="fab" id="speedFab" title="Speed">●</button>
+  <div class="drawer" id="speedDrawer">
+    <div class="quickRow">
+      <button class="quickBtn" data-s="0.1">0.1s</button>
+      <button class="quickBtn" data-s="0.2">0.2s</button>
+      <button class="quickBtn" data-s="0.5">0.5s</button>
+      <button class="quickBtn" data-s="1">1s</button>
+      <button class="quickBtn" data-s="2">2s</button>
+      <button class="quickBtn" data-s="5">5s</button>
+      <button class="quickBtn" data-s="10">10s</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="debug" id="debug"></div>
+
+<script>
+(function(){
+  // Elements
+  const stage = document.getElementById('stage');
+  const wrap = document.getElementById('imgwrap');
+  const nameBar = document.getElementById('nameBar');
+  const nameToggle = document.getElementById('nameToggle');
+  const personName = document.getElementById('personName');
+  const caption = document.getElementById('caption');
+  const countBadge = document.getElementById('countBadge');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const speed = document.getElementById('speed');
+  const secs = document.getElementById('secs');
+  const openBuilder = document.getElementById('openBuilder');
+  const tab1 = document.getElementById('tab1');
+  const tab2 = document.getElementById('tab2');
+  const tab3 = document.getElementById('tab3');
+  const page1 = document.getElementById('page1');
+  const page2 = document.getElementById('page2');
+  const page3 = document.getElementById('page3');
+  const termGrid = document.getElementById('termGrid');
+  const termGrid2 = document.getElementById('termGrid2');
+  const customTerm = document.getElementById('customTerm');
+  const addTerm = document.getElementById('addTerm');
+  const applyBtn = document.getElementById('applyBtn');
+  const clearSelBtn = document.getElementById('clearSelBtn');
+  const modeRandom = document.getElementById('modeRandom');
+  const modeFixed = document.getElementById('modeFixed');
+  const downloadLink = document.getElementById('downloadLink');
+  const toast = document.getElementById('toast');
+  const speedFab = document.getElementById('speedFab');
+  const speedDrawer = document.getElementById('speedDrawer');
+  const debug = document.getElementById('debug');
+
+  // State
+  let items = []; // { name, imageUrl, fileTitle, itemUrl }
+  let timer = null;
+  let autoplay = true;
+  let currIndex = -1;
+  let lastKeyTime = 0;
+  let fixedOrder = false; // false = random shuffle, true = fixed sequence
+
+  // --- Category builders (exact presets) -------------------------------
+  function blockHumanWithImage(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . }`; }
+  function blockFictionalWithImage(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} }`; }
+
+  const CATEGORY_BLOCKS = {
+    'Beatles': () => blockHumanWithImage([ 'wdt:P463 wd:Q1299 ;' ]), // member of The Beatles
+    'Norwegian celebs': () => blockHumanWithImage([ 'wdt:P27 wd:Q20 ;' ]),
+    'US celebs': () => blockHumanWithImage([ 'wdt:P27 wd:Q30 ;' ]),
+    'Norwegian politicians': () => blockHumanWithImage([ 'wdt:P27 wd:Q20 ;', 'wdt:P106 wd:Q82955 ;' ]),
+    'Norwegian ceo': () => blockHumanWithImage([ 'wdt:P27 wd:Q20 ;', 'wdt:P39 wd:Q484876 ;' ]), // position held: CEO
+    'US ceo': () => blockHumanWithImage([ 'wdt:P27 wd:Q30 ;', 'wdt:P39 wd:Q484876 ;' ]),
+    'World ceo': () => blockHumanWithImage([ 'wdt:P39 wd:Q484876 ;' ]),
+    'Music producers': () => blockHumanWithImage([ 'wdt:P106 wd:Q183945 ;' ]), // record producer
+    "Models of the 50's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1959) || (BOUND(?end) && year(?end) >= 1950) || (!BOUND(?start) && !BOUND(?end)) ) }`,
+    "Models of the 80's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1989) || (BOUND(?end) && year(?end) >= 1980) || (!BOUND(?start) && !BOUND(?end)) ) }`,
+    'famous movie characters': () => blockFictionalWithImage([ ' ?person wdt:P31 wd:Q15773347 . ' ]), // film character
+    'famous cartoon characters': () => blockFictionalWithImage([ ' { ?person wdt:P31 wd:Q15711870 . } UNION { ?person wdt:P31 wd:Q373494 . } ' ]), // animated or cartoon character
+  };
+
+  // Heuristic fallback (country/role words)
+  const countryMap = { 'norwegian':'Q20','norway':'Q20','swedish':'Q34','sweden':'Q34','danish':'Q35','denmark':'Q35','finnish':'Q33','finland':'Q33','icelandic':'Q189','iceland':'Q189','british':'Q145','uk':'Q145','english':'Q21','scottish':'Q22','irish':'Q27','french':'Q142','german':'Q183','spanish':'Q29','italian':'Q38','american':'Q30','us':'Q30','canadian':'Q16','indian':'Q668','japanese':'Q17','korean':'Q884','brazilian':'Q155' };
+  const roleMap = { 'actor':'Q33999','actors':'Q33999','actress':'Q33999','film actors':'Q33999','movie stars':'Q33999','musician':'Q639669','musicians':'Q639669','singer':'Q177220','singers':'Q177220','record producer':'Q183945','producer':'Q183945','comedian':'Q245068','comedians':'Q245068','writer':'Q36180','writers':'Q36180','politician':'Q82955','politicians':'Q82955','footballer':'Q937857','footballers':'Q937857','director':'Q2526255','film directors':'Q2526255','tv presenters':'Q947873','youtubers':'Q1931868','influencers':'Q20074590','model':'Q4610556','models':'Q4610556' };
+
+  function buildSPARQLFromTerms(terms){
+    const blocks = [];
+    terms.forEach(t => {
+      const label = (t || '').trim();
+      const fixed = CATEGORY_BLOCKS[label] || CATEGORY_BLOCKS[label.replace(/celbs/i,'celebs')];
+      if (fixed) { blocks.push(fixed()); return; }
+      // fallback heuristic
+      const key = label.toLowerCase();
+      let countryQ=null, roleQ=null; Object.keys(countryMap).forEach(k=>{ if(key.includes(k)) countryQ = countryQ || countryMap[k]; }); Object.keys(roleMap).forEach(k=>{ if(key.includes(k)) roleQ = roleQ || roleMap[k]; });
+      const parts = ['?person wdt:P31 wd:Q5 ;'];
+      if(countryQ) parts.push(` wdt:P27 wd:${countryQ} ;`);
+      if(roleQ) parts.push(` wdt:P106 wd:${roleQ} ;`);
+      parts.push(' wdt:P18 ?image .');
+      blocks.push(`{ ${parts.join('')} }`);
+    });
+    const union = blocks.join('\nUNION\n');
+    return `SELECT ?person ?personLabel ?image WHERE {\n${union}\nSERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }\n}\nLIMIT 1000`;
+  }
+
+  async function sparqlQuery(query){
+    // Use POST to avoid URL-length issues and improve reliability
+    const endpoint = 'https://query.wikidata.org/sparql';
+    debug.textContent = 'Running query…';
+    const body = new URLSearchParams();
+    body.set('query', query);
+    try{
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/sparql-results+json',
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        },
+        body
+      });
+      if(!res.ok){ throw new Error('WDQS HTTP '+res.status); }
+      const data = await res.json();
+      return data;
+    }catch(err){
+      debug.textContent = 'Query failed: '+ err.message;
+      throw err;
+    }
+  }
+
+  async function fetchWDFromTerms(terms){
+    const sparql = buildSPARQLFromTerms(terms);
+    debug.textContent = 'Query built ('+terms.length+' categories).';
+    const data = await sparqlQuery(sparql);
+    const rows = data.results.bindings || [];
+    if(!rows.length){ debug.textContent = 'No rows returned.'; }
+    return rows.map(r=>{
+      const name = r.personLabel?.value || 'Unknown';
+      const imageField = r.image?.value || '';
+      let imageUrl = imageField;
+      if (!imageUrl.includes('Special:FilePath')) {
+        let fn = imageUrl;
+        if (fn.startsWith('http')) {
+          try { const u = new URL(fn); const last = decodeURIComponent(u.pathname.split('/').pop()); fn = last.startsWith('File:') ? last : 'File:'+last; } catch {}
+        }
+        if (!fn.startsWith('File:')) fn = 'File:' + fn.replace(/^.*File:/,'');
+        imageUrl = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(fn.replace(/^File:/,'')) + '?width=1600';
+      } else {
+        if (!/\?width=/.test(imageUrl)) imageUrl += (imageUrl.includes('?')?'&':'?')+'width=1600';
+      }
+      let fileTitle = 'File:';
+      if (imageUrl.includes('Special:FilePath/')) fileTitle += decodeURIComponent(imageUrl.split('Special:FilePath/')[1].split('?')[0]);
+      const itemUrl = r.person?.value || '#';
+      return { name, imageUrl, fileTitle, itemUrl };
+    });
+  }
+
+  async function fetchAttribution(fileTitle){
+    try{
+      const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles=' + encodeURIComponent(fileTitle);
+      const res = await fetch(url); const data = await res.json();
+      const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null;
+      const info = page?.imageinfo?.[0]; const meta = info?.extmetadata || {};
+      const artist = meta.Artist?.value || ''; const credit = meta.Credit?.value || ''; const license = meta.LicenseShortName?.value || '';
+      const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle));
+      return { artist, credit, license, filePageUrl };
+    }catch(e){ return { artist:'', credit:'', license:'', filePageUrl: 'https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle) }; }
+  }
+
+  function clearImage(){ wrap.innerHTML = '<div class="hint">Loading…</div>'; }
+
+  async function showIndex(i){ if(!items.length) return; currIndex = (i + items.length) % items.length; const it = items[currIndex]; clearImage(); const img = new Image(); img.className='photo'; img.decoding='async'; img.onload = async ()=>{ wrap.innerHTML=''; wrap.appendChild(img); personName.innerHTML = `<a href="${it.itemUrl}" target="_blank" rel="noopener" style="color:var(--fg); text-decoration:none">${it.name}</a>`; const { artist, credit, license, filePageUrl } = await fetchAttribution(it.fileTitle); const creditText = artist || credit || ''; caption.innerHTML = `${creditText ? creditText + ' • ' : ''}<a href="${filePageUrl}" target="_blank" rel="noopener">${it.fileTitle}</a>${license? ' • License: '+license : ''}`; downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,''); }; img.onerror = ()=>{ toast.textContent='Skipped an image that failed to load'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1500); next(); }; img.src = it.imageUrl; }
+
+  function next(){ showIndex((currIndex + 1) % items.length); }
+  function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
+
+  function clampSeconds(){ let v = Number(secs.value)||2; if(v<0.1) v=0.1; if(v>10) v=10; secs.value=v; speed.value=v; return v; }
+  function startAutoplay(){ if(timer) clearInterval(timer); const s = clampSeconds(); timer = setInterval(next, s * 1000); autoplay = true; playPauseBtn.textContent='⏸︎ Pause'; }
+  function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; playPauseBtn.textContent='▶︎ Play'; }
+
+  function setMode(isFixed){ fixedOrder = !!isFixed; modeRandom.setAttribute('aria-pressed', String(!fixedOrder)); modeFixed.setAttribute('aria-pressed', String(fixedOrder)); }
+
+  async function applySelection(){
+    // Clear cache + items when applying new selection
+    items = []; currIndex = -1; wrap.innerHTML = '<div class="hint">Applying selection…</div>'; countBadge.textContent = 'Fetching…';
+    const chosen = collectSelectedTerms();
+    if(!chosen.length){ toast.textContent='Select one or more categories first.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1500); return; }
+    try{
+      let data = await fetchWDFromTerms(chosen);
+      if(!fixedOrder) data = data.sort(()=>Math.random()-0.5);
+      items = data; countBadge.textContent = `${items.length} photos`;
+      if(!items.length){ wrap.innerHTML = '<div class="hint">No results. Try different categories.</div>'; return; }
+      showIndex(0); startAutoplay();
+      debug.textContent = 'Loaded '+items.length+' photos.';
+    }catch(e){ console.error(e); wrap.innerHTML='<div class="hint">Error fetching photos (see bottom-left). Try again.</div>'; countBadge.textContent='0'; }
+  }
+
+  function collectSelectedTerms(){
+    const t1 = Array.from(termGrid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term || b.textContent.trim());
+    const t2 = Array.from(termGrid2.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term || b.textContent.trim());
+    return t1.concat(t2).filter(Boolean);
+  }
+
+  // Tabs
+  function setPage(idx){ page1.classList.toggle('active', idx===1); page2.classList.toggle('active', idx===2); page3.classList.toggle('active', idx===3); tab1.setAttribute('aria-selected', String(idx===1)); tab2.setAttribute('aria-selected', String(idx===2)); tab3.setAttribute('aria-selected', String(idx===3)); }
+  tab1.addEventListener('click', ()=> setPage(1));
+  tab2.addEventListener('click', ()=> setPage(2));
+  tab3.addEventListener('click', ()=> setPage(3));
+  openBuilder.addEventListener('click', ()=> setPage(2));
+
+  // Keyboard mapping (disable while typing in inputs)
+  function isTypingTarget(t){ if(!t) return false; const tag = (t.tagName||'').toLowerCase(); return tag==='input' || tag==='textarea' || t.isContentEditable; }
+  function updateNameToggle(){ nameToggle.textContent = nameBar.classList.contains('collapsed') ? 'Show name' : 'Hide name'; }
+  function toggleName(){ nameBar.classList.toggle('collapsed'); updateNameToggle(); }
+
+  document.addEventListener('keydown', (e)=>{
+    if(isTypingTarget(e.target)) return; // do nothing when typing/renaming
+    const now=Date.now(); if(now - lastKeyTime < 120) return; lastKeyTime = now;
+    const key = (e.key || '').toLowerCase();
+    // Space = play/pause
+    if (e.code === 'Space') { e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; }
+    // P = play/pause
+    if (key === 'p') { e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; }
+    // S = show/hide name
+    if (key === 's') { e.preventDefault(); toggleName(); return; }
+    // Arrows explicit (still supported)
+    if (key === 'arrowleft') { e.preventDefault(); stopAutoplay(); prev(); return; }
+    if (key === 'arrowright') { e.preventDefault(); stopAutoplay(); next(); return; }
+    // Any other key: left side -> prev, right side -> next (with exceptions above)
+    const leftSet = new Set(['`','1','2','3','4','5','q','w','e','r','t','a','d','f','g','z','x','c','v','b']);
+    const rightSet = new Set(['6','7','8','9','0','-','=', 'y','u','i','o','p','[',']','\\', 'h','j','k','l',';','\'', 'n','m',',','.','/']);
+    if (e.location === 3) { stopAutoplay(); next(); return; } // numpad = right
+    if (rightSet.has(key)) { stopAutoplay(); next(); return; }
+    if (leftSet.has(key)) { stopAutoplay(); prev(); return; }
+  });
+
+  // Swipe
+  let touchStartX=null, touchStartY=null; stage.addEventListener('touchstart', (e)=>{ const t=e.changedTouches[0]; touchStartX=t.clientX; touchStartY=t.clientY; }, {passive:true}); stage.addEventListener('touchend', (e)=>{ const t=e.changedTouches[0]; const dx=t.clientX - touchStartX; const dy=t.clientY - touchStartY; if(Math.abs(dx) > 40 && Math.abs(dy) < 60){ stopAutoplay(); if(dx<0) next(); else prev(); } }, {passive:true});
+
+  // Controls
+  playPauseBtn.addEventListener('click', ()=>{ if(autoplay) stopAutoplay(); else startAutoplay(); });
+  nextBtn.addEventListener('click', ()=>{ stopAutoplay(); next(); });
+  speed.addEventListener('input', ()=>{ secs.value = speed.value; if(autoplay) startAutoplay(); });
+  secs.addEventListener('change', ()=>{ speed.value = Number(secs.value)||2; if(autoplay) startAutoplay(); });
+
+  // Name controls
+  nameBar.addEventListener('click', toggleName);
+  nameToggle.addEventListener('click', toggleName);
+
+  // Floating blue button + quick times
+  speedFab.addEventListener('click', ()=>{ speedDrawer.classList.toggle('open'); });
+  speedDrawer.querySelectorAll('.quickBtn').forEach(btn=>{ btn.addEventListener('click', ()=>{ const v = Number(btn.dataset.s); secs.value=v; speed.value=v; if(autoplay) startAutoplay(); }); });
+
+  // Builder UI
+  function makeTermButton(label, gridEl){
+    const btn = document.createElement('button');
+    btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term = label; btn.dataset.clicks='0';
+    btn.addEventListener('click', ()=>{
+      const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks = String(c);
+      if(c>=3){ btn.dataset.clicks='0'; btn.classList.add('editing'); const prev = btn.dataset.term; const input = document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%'; input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const v = input.value.trim()||prev; btn.dataset.term = v; btn.textContent=v; btn.classList.remove('editing'); } }); input.addEventListener('blur', ()=>{ const v = input.value.trim()||prev; btn.dataset.term = v; btn.textContent=v; btn.classList.remove('editing'); }); btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return; }
+      btn.classList.toggle('selected'); setTimeout(()=>{ btn.dataset.clicks='0'; }, 400);
+    });
+    gridEl.appendChild(btn);
+    return btn;
+  }
+
+  function populateDefaults(){
+    termGrid.innerHTML=''; termGrid2.innerHTML='';
+    const presets = [
+      'Beatles', 'Norwegian celebs', 'US celebs', 'Norwegian politicians', 'Norwegian ceo', 'US ceo', 'World ceo', 'Music producers', "Models of the 50's", "Models of the 80's", 'famous movie characters', 'famous cartoon characters',
+      'Norwegian actors','Norwegian musicians','Norwegian comedians','Norwegian writers', 'UK celebrity','British actors','German footballers','50s movie stars'
+    ];
+    presets.forEach((p, idx)=>{ const gridEl = idx < 16 ? termGrid : termGrid2; makeTermButton(p, gridEl); });
+    while(termGrid.querySelectorAll('.termBtn').length + termGrid2.querySelectorAll('.termBtn').length < 25){ makeTermButton('Custom term', termGrid2); }
+  }
+
+  addTerm.addEventListener('click', ()=>{ const t=(customTerm.value||'').trim(); if(!t) return; makeTermButton(t, termGrid2); customTerm.value=''; });
+  clearSelBtn.addEventListener('click', ()=>{ [...termGrid.querySelectorAll('.termBtn.selected'), ...termGrid2.querySelectorAll('.termBtn.selected')].forEach(b=> b.classList.remove('selected')); items=[]; currIndex=-1; wrap.innerHTML = '<div class="hint">Selection cleared.</div>'; countBadge.textContent='0'; stopAutoplay(); });
+  applyBtn.addEventListener('click', ()=>{ setPage(1); applySelection(); });
+
+  modeRandom.addEventListener('click', ()=>{ setMode(false); toast.textContent='Mode: Random photos'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); if(items.length){ items = items.sort(()=>Math.random()-0.5); currIndex = -1; showIndex(0); } });
+  modeFixed.addEventListener('click', ()=>{ setMode(true); toast.textContent='Mode: Same sequence'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); });
+
+  // Init
+  populateDefaults();
+  // Default selection
+  termGrid.querySelectorAll('.termBtn').forEach(btn=>{ if(['Norwegian celebs','Norwegian actors','Norwegian musicians'].includes(btn.dataset.term)) btn.classList.add('selected'); });
+  applySelection();
+})();
+</script>
+</body>
+</html>
