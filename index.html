@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Celeb Slideshow — Random Photo Fetcher</title>
-  <meta name="description" content="Slideshow that auto‑fetches photos from Wikidata/Commons. Mobile swipe to pages, object/car categories, JSON import/export, play button 20% up left, and new timing: 0.2s steppers for sec & ms + quick 1/3/5s." />
+  <meta name="description" content="Slideshow that auto‑fetches photos from Wikidata/Commons. Mobile swipe, category pages 2–4 with Apply/Clear everywhere, Settings with load-limit, flicker-free image swap, right-side play at 40% height, precise timing controls (sec ±1, ms ±0.2), objects/cars queries fixed." />
   <style>
     :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; }
     *{box-sizing:border-box}
@@ -20,15 +20,18 @@
     .btn.warn{border-color:rgba(251,191,36,.6); background:rgba(251,191,36,.15)}
     .btn.danger{border-color:rgba(248,113,113,.7); background:rgba(248,113,113,.18)}
     .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
-    .tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:rgba(2,6,23,.35); overflow:auto}
-    .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap}
+
+    .tabs{display:flex; gap:8px; padding:6px 10px; border-bottom:1px solid rgba(255,255,255,.06); background:rgba(2,6,23,.35); overflow:auto}
+    .tab{padding:6px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap; font-size:13px}
     .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.6)}
+
     .page{display:none; height:100%}
     .page.active{display:block}
 
-    .stage{position:relative; height:calc(100vh - 240px); min-height:360px; overflow:hidden; display:grid; place-items:center}
+    .stage{position:relative; height:calc(100vh - 210px); min-height:360px; overflow:hidden; display:grid; place-items:center}
     .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center}
-    img.photo{max-width:85%; max-height:75%; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6)}
+    img.photo{max-width:85%; max-height:75%; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6); opacity:0; transition:opacity .18s ease}
+    img.photo.show{opacity:1}
 
     .hotzone{position:absolute; top:0; bottom:0}
     .hotzone.left{left:0; width:33.333%}
@@ -41,30 +44,31 @@
     .title{font-size:20px; font-weight:800}
     .caption{font-size:13px; color:var(--muted)}
 
-    .builder{padding:12px}
+    .builder{padding:10px; height:calc(100vh - 220px); overflow:auto}
     .hintRow{display:flex; gap:10px; align-items:center; margin-bottom:8px}
     .hint{font-size:13px; color:var(--muted)}
     .hintToggle{width:18px; height:18px; border-radius:4px; background:#334155; border:1px solid rgba(255,255,255,.2); cursor:pointer}
 
-    .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
-    .termBtn{padding:12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
+    .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px}
+    .termBtn{padding:10px 12px; border-radius:10px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff; font-size:13px}
     .termBtn.selected{outline:2px solid var(--accent); background:#1f2937}
     .termBtn.editing{outline:2px dashed var(--warn)}
 
-    .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
+    .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; align-items:center}
 
-    footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); border-top:1px solid rgba(255,255,255,.06)}
+    footer{padding:8px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); border-top:1px solid rgba(255,255,255,.06)}
     footer a{color:var(--ok); text-decoration:none}
 
     .toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none}
 
     .fab{position:fixed; right:16px; bottom:16px; width:56px; height:56px; border-radius:50%; background:#3b82f6; color:white; display:grid; place-items:center; font-size:22px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,.35); z-index:60}
-    .drawer{position:fixed; left:0; right:0; bottom:-220px; background:rgba(15,23,42,.96); border-top:1px solid rgba(255,255,255,.08); padding:12px; display:grid; gap:12px; transition:bottom .25s ease; z-index:55}
+    .drawer{position:fixed; left:0; right:0; bottom:-240px; background:rgba(15,23,42,.96); border-top:1px solid rgba(255,255,255,.08); padding:12px; display:grid; gap:12px; transition:bottom .25s ease; z-index:55}
     .drawer.open{bottom:0}
     .quickRow{display:flex; gap:8px; flex-wrap:wrap}
     .quickBtn{padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
 
-    .playCorner{position:fixed; left:16px; bottom:20vh; z-index:65}
+    /* Play button on right, 40% up */
+    .playCorner{position:fixed; right:16px; bottom:40vh; z-index:65}
 
     .debug{position:fixed; left:12px; bottom:60px; font-size:11px; color:#9fb7d6; opacity:.7}
 
@@ -100,13 +104,14 @@
         <div class="nameArea">
           <button class="nameToggle" id="nameToggle">Hide name</button>
           <div class="nameBar" id="nameBar">
-            <div class="title" id="personName">&nbsp;</div>
+            <div class="title" id="entityName">&nbsp;</div>
             <div class="caption" id="caption"><span class="hint">Tap to show/hide name & credit</span></div>
           </div>
         </div>
       </div>
     </section>
 
+    <!-- Category pages now ALL have Apply/Clear + Add term -->
     <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
       <div class="builder">
         <div class="hintRow"><div class="hintToggle" id="hintToggle2"></div><div class="hint" id="hint2">Tap to select (blue). Triple‑click to edit. Apply clears cache and loads only selected. <a href="#" id="linkP3">Go to Page 3</a> • <a href="#" id="linkP4">Page 4</a> • <a href="#" id="linkP5">Settings</a> • <a href="#" id="linkBack1">Back to Page 1</a></div></div>
@@ -114,8 +119,8 @@
         <div class="builderActions">
           <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
           <button class="btn ok" id="addTerm1">Add</button>
-          <button class="btn primary" id="applyBtn">Apply selection</button>
-          <button class="btn danger" id="clearSelBtn">Clear selection</button>
+          <button class="btn primary applyAll">Apply selection</button>
+          <button class="btn danger clearAll">Clear selection</button>
           <span class="hint">Mode:</span>
           <button class="btn" id="modeRandom" aria-pressed="true">Random photos</button>
           <button class="btn" id="modeFixed" aria-pressed="false">Same sequence</button>
@@ -130,6 +135,8 @@
         <div class="builderActions">
           <input type="text" id="customTerm2" placeholder="Add a custom term…" />
           <button class="btn ok" id="addTerm2">Add</button>
+          <button class="btn primary applyAll">Apply selection</button>
+          <button class="btn danger clearAll">Clear selection</button>
         </div>
       </div>
     </section>
@@ -141,14 +148,25 @@
         <div class="builderActions">
           <input type="text" id="customTerm3" placeholder="Add a custom term…" />
           <button class="btn ok" id="addTerm3">Add</button>
+          <button class="btn primary applyAll">Apply selection</button>
+          <button class="btn danger clearAll">Clear selection</button>
         </div>
       </div>
     </section>
 
     <section id="page5" class="page" role="tabpanel" aria-labelledby="tab5">
       <div class="builder">
-        <div class="hintRow"><div class="hintToggle" id="hintToggle5"></div><div class="hint" id="hint5">Settings: Export/Import categories as JSON. <a href="#" id="linkBack4">Back to Page 1</a></div></div>
+        <div class="hintRow"><div class="hintToggle" id="hintToggle5"></div><div class="hint" id="hint5">Settings: Export/Import + how many photos to load • <a href="#" id="linkBack4">Back to Page 1</a></div></div>
         <div style="display:grid; gap:10px; max-width:840px">
+          <label>Max photos to load
+            <select id="limitSelect">
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="300">300</option>
+              <option value="600">600</option>
+              <option value="1200">1200</option>
+            </select>
+          </label>
           <button class="btn primary" id="exportBtn">Export categories → JSON</button>
           <textarea id="jsonBox" placeholder='Paste JSON here to import…'></textarea>
           <div style="display:flex; gap:8px; flex-wrap:wrap">
@@ -161,13 +179,15 @@
   </main>
 
   <footer>
-    <div>PC keys: Right‑side → <strong>Next</strong> (except <kbd>P</kbd> = play/pause). Left‑side → <strong>Previous</strong> (except <kbd>S</kbd> = name). <kbd>Space</kbd>/<kbd>P</kbd> = play/pause. Arrows work. While typing/renaming, hotkeys are disabled. Mobile: swipe left on Page 1 to open Page 2, then left again to Page 3; swipe right from category pages to return.</div>
+    <div>PC keys: Right‑side → <strong>Next</strong> (except <kbd>P</kbd> = play/pause). Left‑side → <strong>Previous</strong> (except <kbd>S</kbd> = name). <kbd>Space</kbd>/<kbd>P</kbd> = play/pause. Arrows work. Typing disables hotkeys. Mobile: swipe left on Page 1 to Page 2, then left again to Page 3; swipe right on category pages to return.</div>
     <div class="sp"></div>
     <a href="#" id="downloadLink" title="Download current image">Download</a>
   </footer>
 
+  <!-- Play/Stop on right @40% -->
   <div class="playCorner"><button class="btn primary" id="cornerPlayStop">⏯️ Play/Stop</button></div>
 
+  <!-- Timing drawer (appears on Page 1 only) -->
   <button class="fab" id="speedFab" title="Speed / Name delay">●</button>
   <div class="drawer" id="speedDrawer">
     <div><strong>Slide speed</strong></div>
@@ -176,27 +196,33 @@
       <button class="quickBtn" data-s="3">3s</button>
       <button class="quickBtn" data-s="5">5s</button>
     </div>
-    <div><strong>Fine tune speed</strong> <span class="hint">(both steppers adjust by 0.2s)</span></div>
+    <div><strong>Fine tune speed</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
     <div class="quickRow" id="fineRow">
       <div class="stepper" data-type="sec">
-        <button class="quickBtn" data-delta="-0.2">−</button>
+        <button class="quickBtn" data-delta="-1">−1s</button>
         <span class="stepVal" id="fineSec">2</span><span class="hint"> s</span>
-        <button class="quickBtn" data-delta="0.2">＋</button>
+        <button class="quickBtn" data-delta="1">＋1s</button>
       </div>
       <div class="stepper" data-type="ms">
-        <button class="quickBtn" data-delta="-0.2">−</button>
+        <button class="quickBtn" data-delta="-0.2">−0.2s</button>
         <span class="stepVal" id="fineMs">0</span><span class="hint"> ms</span>
-        <button class="quickBtn" data-delta="0.2">＋</button>
+        <button class="quickBtn" data-delta="0.2">＋0.2s</button>
       </div>
       <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="fineTotal">2.0s</strong></div>
     </div>
-    <div><strong>Name reveal delay</strong></div>
-    <div class="quickRow" id="nameRow">
-      <button class="quickBtn" data-n="0.5">0.5s</button>
-      <button class="quickBtn" data-n="0.7">0.7s</button>
-      <button class="quickBtn" data-n="1">1s</button>
-      <button class="quickBtn" data-n="1.5">1.5s</button>
-      <button class="quickBtn" data-n="2">2s</button>
+    <div><strong>Name reveal delay</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
+    <div class="quickRow" id="nameFineRow">
+      <div class="stepper" data-type="nsec">
+        <button class="quickBtn" data-delta="-1">−1s</button>
+        <span class="stepVal" id="nameSec">0</span><span class="hint"> s</span>
+        <button class="quickBtn" data-delta="1">＋1s</button>
+      </div>
+      <div class="stepper" data-type="nms">
+        <button class="quickBtn" data-delta="-0.2">−0.2s</button>
+        <span class="stepVal" id="nameMs">0</span><span class="hint"> ms</span>
+        <button class="quickBtn" data-delta="0.2">＋0.2s</button>
+      </div>
+      <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="nameTotal">0.5s</strong></div>
     </div>
   </div>
 
@@ -205,11 +231,11 @@
 
 <script>
 (function(){
-  const stage = document.getElementById('stage');
+  // Elements
   const wrap = document.getElementById('imgwrap');
   const nameBar = document.getElementById('nameBar');
   const nameToggle = document.getElementById('nameToggle');
-  const personName = document.getElementById('personName');
+  const entityName = document.getElementById('entityName');
   const caption = document.getElementById('caption');
   const countBadge = document.getElementById('countBadge');
   const downloadLink = document.getElementById('downloadLink');
@@ -220,39 +246,37 @@
   const gearBtn = document.getElementById('gearBtn');
   const nextTabBtn = document.getElementById('nextTabBtn');
   const cornerPlayStop = document.getElementById('cornerPlayStop');
+  const limitSelect = document.getElementById('limitSelect');
 
+  // Tabs
   const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
   function setPage(idx){ tabs.forEach((t,i)=>{ const active=(i+1)===idx; t.page.classList.toggle('active', active); t.tab.setAttribute('aria-selected', String(active)); }); }
   tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
   gearBtn.addEventListener('click', ()=> setPage(5));
   nextTabBtn.addEventListener('click', ()=>{ const active = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; setPage(active%5 + 1); });
 
+  // Page links
   const link = (id, to)=> document.getElementById(id)?.addEventListener('click', (e)=>{ e.preventDefault(); setPage(to); });
   link('linkP3',3); link('linkP4',4); link('linkP5',5); link('linkBack1',1);
   link('linkP2',2); link('linkP4b',4); link('linkP5b',5); link('linkBack2',1);
   link('linkP2c',2); link('linkP3c',3); link('linkP5c',5); link('linkBack3',1);
   link('linkBack4',1);
 
+  // Grids & actions on pages 2–4
   const grids = [
-    { grid: document.getElementById('termGrid1'), input: document.getElementById('customTerm1'), add: document.getElementById('addTerm1'), hint: document.getElementById('hint2'), toggle: document.getElementById('hintToggle2') },
-    { grid: document.getElementById('termGrid2'), input: document.getElementById('customTerm2'), add: document.getElementById('addTerm2'), hint: document.getElementById('hint3'), toggle: document.getElementById('hintToggle3') },
-    { grid: document.getElementById('termGrid3'), input: document.getElementById('customTerm3'), add: document.getElementById('addTerm3'), hint: document.getElementById('hint4'), toggle: document.getElementById('hintToggle4') },
+    { grid: document.getElementById('termGrid1'), input: document.getElementById('customTerm1'), add: document.getElementById('addTerm1') },
+    { grid: document.getElementById('termGrid2'), input: document.getElementById('customTerm2'), add: document.getElementById('addTerm2') },
+    { grid: document.getElementById('termGrid3'), input: document.getElementById('customTerm3'), add: document.getElementById('addTerm3') },
   ];
-  const applyBtn = document.getElementById('applyBtn');
-  const clearSelBtn = document.getElementById('clearSelBtn');
-  const modeRandom = document.getElementById('modeRandom');
-  const modeFixed = document.getElementById('modeFixed');
-  const jsonBox = document.getElementById('jsonBox');
-  const exportBtn = document.getElementById('exportBtn');
-  const importBtn = document.getElementById('importBtn');
-  const resetBtn = document.getElementById('resetBtn');
 
-  let items = []; let timer=null; let autoplay=true; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null; let nameDelay=500;
-  window.__slideSeconds = 2;
+  // Global state
+  let items = []; let timer=null; let autoplay=true; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null; let nameDelay=500; let maxPhotos=100;
+  window.__slideSeconds = 2; // default 2s
 
-  function blockHumanWithImage(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . }`; }
-  function blockFictionalWithImage(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} }`; }
-  function blockThingWithImage(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . }`; }
+  // Category query building — unified entity variable + label
+  function blockHumanWithImage(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . BIND(?person AS ?entity) }`; }
+  function blockFictionalWithImage(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} BIND(?person AS ?entity) }`; }
+  function blockThingWithImage(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . BIND(?thing AS ?entity) }`; }
 
   const CATEGORY_BLOCKS = {
     'Beatles': () => blockHumanWithImage([ 'wdt:P463 wd:Q1299 ;' ]),
@@ -263,8 +287,8 @@
     'US ceo': () => blockHumanWithImage([ 'wdt:P27 wd:Q30 ;', 'wdt:P39 wd:Q484876 ;' ]),
     'World ceo': () => blockHumanWithImage([ 'wdt:P39 wd:Q484876 ;' ]),
     'Music producers': () => blockHumanWithImage([ 'wdt:P106 wd:Q183945 ;' ]),
-    "Models of the 50's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1959) || (BOUND(?end) && year(?end) >= 1950) || (!BOUND(?start) && !BOUND(?end)) ) }`,
-    "Models of the 80's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1989) || (BOUND(?end) && year(?end) >= 1980) || (!BOUND(?start) && !BOUND(?end)) ) }`,
+    "Models of the 50's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1959) || (BOUND(?end) && year(?end) >= 1950) || (!BOUND(?start) && !BOUND(?end)) ) BIND(?person AS ?entity) }`,
+    "Models of the 80's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1989) || (BOUND(?end) && year(?end) >= 1980) || (!BOUND(?start) && !BOUND(?end)) ) BIND(?person AS ?entity) }`,
     'famous movie characters': () => blockFictionalWithImage([ ' ?person wdt:P31 wd:Q15773347 . ' ]),
     'famous cartoon characters': () => blockFictionalWithImage([ ' { ?person wdt:P31 wd:Q15711870 . } UNION { ?person wdt:P31 wd:Q373494 . } ' ]),
     'objects': () => blockThingWithImage([ ' ?thing wdt:P31/wdt:P279* wd:Q488383 . ' ]),
@@ -273,12 +297,13 @@
     'cars': () => blockThingWithImage([ ' { ?thing wdt:P31 wd:Q1420 . } UNION { ?thing wdt:P31 wd:Q3231690 . } ' ]),
   };
 
+  // Dynamic terms (e.g., "cars of 2010")
   function parseDynamicTerm(term){
     const t = term.toLowerCase().trim();
     const yearMatch = t.match(/(\d{4})/);
     if (/\bcars?\b/.test(t) && yearMatch){
       const y = parseInt(yearMatch[1],10);
-      return `{ ?thing wdt:P18 ?image . { ?thing wdt:P31 wd:Q3231690 . OPTIONAL { ?thing wdt:P571 ?inception . } FILTER(BOUND(?inception) && year(?inception) = ${y}) } }`;
+      return `{ ?thing wdt:P18 ?image . { ?thing wdt:P31 wd:Q3231690 . OPTIONAL { ?thing wdt:P571 ?inception . } FILTER(BOUND(?inception) && year(?inception) = ${y}) } BIND(?thing AS ?entity) }`;
     }
     if (/\bobjects?\b/.test(t)) return CATEGORY_BLOCKS['objects']();
     if (/household/.test(t)) return CATEGORY_BLOCKS['household objects']();
@@ -297,19 +322,20 @@
       const fixed = CATEGORY_BLOCKS[label] || CATEGORY_BLOCKS[label.replace(/celbs/i,'celebs')];
       if (fixed) { blocks.push(fixed()); return; }
       const dyn = parseDynamicTerm(label); if(dyn){ blocks.push(dyn); return; }
+      // people fallback by country/role
       const key = label.toLowerCase();
       let countryQ=null, roleQ=null; Object.keys(countryMap).forEach(k=>{ if(key.includes(k)) countryQ = countryQ || countryMap[k]; }); Object.keys(roleMap).forEach(k=>{ if(key.includes(k)) roleQ = roleQ || roleMap[k]; });
       if(countryQ || roleQ){
         const parts = ['?person wdt:P31 wd:Q5 ;'];
         if(countryQ) parts.push(` wdt:P27 wd:${countryQ} ;`);
         if(roleQ) parts.push(` wdt:P106 wd:${roleQ} ;`);
-        parts.push(' wdt:P18 ?image .'); blocks.push(`{ ${parts.join('')} }`);
+        parts.push(' wdt:P18 ?image . BIND(?person AS ?entity)'); blocks.push(`{ ${parts.join('')} }`);
       } else {
         blocks.push(CATEGORY_BLOCKS['objects']());
       }
     });
     const union = blocks.join('\nUNION\n');
-    return `SELECT ?person ?personLabel ?image WHERE {\n${union}\nSERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }\n}\nLIMIT 1200`;
+    return `SELECT ?entity ?entityLabel ?image WHERE {\n${union}\nSERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }\n}\nLIMIT ${maxPhotos}`;
   }
 
   async function sparqlQuery(query){
@@ -325,17 +351,17 @@
     const data = await sparqlQuery(sparql);
     const rows = data.results.bindings || [];
     return rows.map(r=>{
-      const name = r.personLabel?.value || 'Untitled';
+      const name = r.entityLabel?.value || 'Untitled';
       const imageField = r.image?.value || '';
       let imageUrl = imageField;
       if (!imageUrl.includes('Special:FilePath')) {
-        let fn = imageField;
+        let fn = imageUrl;
         if (fn.startsWith('http')) { try { const u = new URL(fn); const last = decodeURIComponent(u.pathname.split('/').pop()); fn = last.startsWith('File:') ? last : 'File:'+last; } catch {} }
         if (!fn.startsWith('File:')) fn = 'File:' + fn.replace(/^.*File:/,'');
         imageUrl = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(fn.replace(/^File:/,'')) + '?width=1600';
       } else { if (!/\?width=/.test(imageUrl)) imageUrl += (imageUrl.includes('?')?'&':'?')+'width=1600'; }
       let fileTitle = 'File:'; if (imageUrl.includes('Special:FilePath/')) fileTitle += decodeURIComponent(imageUrl.split('Special:FilePath/')[1].split('?')[0]);
-      const itemUrl = r.person?.value || '#';
+      const itemUrl = r.entity?.value || '#';
       return { name, imageUrl, fileTitle, itemUrl };
     });
   }
@@ -344,18 +370,24 @@
     try{ const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles=' + encodeURIComponent(fileTitle); const res = await fetch(url); const data = await res.json(); const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null; const info = page?.imageinfo?.[0]; const meta = info?.extmetadata || {}; const artist = meta.Artist?.value || ''; const credit = meta.Credit?.value || ''; const license = meta.LicenseShortName?.value || ''; const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle)); return { artist, credit, license, filePageUrl }; }catch(e){ return { artist:'', credit:'', license:'', filePageUrl: 'https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle) }; }
   }
 
-  function clearImage(){ wrap.innerHTML = '<div class="hint">Loading…</div>'; }
+  // Flicker-free show: keep current img until next is ready
+  let currentImg=null;
+  function swapIn(img){
+    if(currentImg) wrap.removeChild(currentImg);
+    currentImg = img; currentImg.classList.add('photo','show'); wrap.appendChild(currentImg);
+  }
 
-  async function showIndex(i){ if(!items.length) return; currIndex = (i + items.length) % items.length; const it = items[currIndex]; clearImage(); const img = new Image(); img.className='photo'; img.decoding='async'; img.onload = async ()=>{ wrap.innerHTML=''; wrap.appendChild(img); nameBar.classList.add('collapsed'); personName.innerHTML = `${it.itemUrl && it.itemUrl!=='#' ? `<a href="${it.itemUrl}" target="_blank" rel="noopener" style="color:var(--fg); text-decoration:none">${it.name}</a>` : it.name}`; const { artist, credit, license, filePageUrl } = await fetchAttribution(it.fileTitle); const creditText = artist || credit || ''; caption.innerHTML = `${creditText ? creditText + ' • ' : ''}<a href="${filePageUrl}" target="_blank" rel="noopener">${it.fileTitle}</a>${license? ' • License: '+license : ''}`; downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,''); setTimeout(()=>{ nameBar.classList.remove('collapsed'); updateNameToggle(); }, nameDelay); }; img.onerror = ()=>{ toast.textContent='Skipped an image that failed to load'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); next(); }; img.src = it.imageUrl; }
+  async function showIndex(i){ if(!items.length) return; currIndex = (i + items.length) % items.length; const it = items[currIndex]; const img = new Image(); img.decoding='async'; img.onload = async ()=>{ img.className='photo show'; swapIn(img); nameBar.classList.add('collapsed'); entityName.innerHTML = `${it.itemUrl && it.itemUrl!=='#' ? `<a href="${it.itemUrl}" target="_blank" rel="noopener" style="color:var(--fg); text-decoration:none">${it.name}</a>` : it.name}`; const { artist, credit, license, filePageUrl } = await fetchAttribution(it.fileTitle); const creditText = artist || credit || ''; caption.innerHTML = `${creditText ? creditText + ' • ' : ''}<a href="${filePageUrl}" target="_blank" rel="noopener">${it.fileTitle}</a>${license? ' • License: '+license : ''}`; downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,''); setTimeout(()=>{ nameBar.classList.remove('collapsed'); updateNameToggle(); }, nameDelay); }; img.onerror = ()=>{ next(); }; img.src = it.imageUrl; }
   function next(){ showIndex((currIndex + 1) % items.length); }
   function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
 
+  let timer=null; let autoplay=true;
   function startAutoplay(){ if(timer) clearInterval(timer); timer = setInterval(next, (window.__slideSeconds||2)*1000); autoplay = true; cornerPlayStop.textContent='⏹ Stop'; }
   function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.textContent='▶️ Play'; }
 
-  function setMode(isFixed){ fixedOrder = !!isFixed; modeRandom?.setAttribute('aria-pressed', String(!fixedOrder)); modeFixed?.setAttribute('aria-pressed', String(fixedOrder)); }
+  function setMode(isFixed){ fixedOrder = !!isFixed; document.getElementById('modeRandom')?.setAttribute('aria-pressed', String(!fixedOrder)); document.getElementById('modeFixed')?.setAttribute('aria-pressed', String(fixedOrder)); }
 
-  async function applySelection(){ items = []; currIndex = -1; wrap.innerHTML = '<div class="hint">Applying selection…</div>'; countBadge.textContent = 'Fetching…'; const chosen = collectSelectedTerms(); if(!chosen.length){ toast.textContent='Select one or more categories first.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); return; } try{ let data = await fetchWDFromTerms(chosen); if(!fixedOrder) data = data.sort(()=>Math.random()-0.5); items = data; countBadge.textContent = `${items.length} photos`; if(!items.length){ wrap.innerHTML = '<div class="hint">No results. Try different categories.</div>'; return; } showIndex(0); startAutoplay(); debug.textContent = 'Loaded '+items.length+' photos.'; }catch(e){ console.error(e); wrap.innerHTML='<div class="hint">Error fetching photos.</div>'; countBadge.textContent='0'; debug.textContent = e.message; } }
+  async function applySelection(){ items = []; currIndex = -1; countBadge.textContent = 'Fetching…'; const chosen = collectSelectedTerms(); if(!chosen.length){ toast.textContent='Select one or more categories first.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); return; } try{ let data = await fetchWDFromTerms(chosen); if(!fixedOrder) data = data.sort(()=>Math.random()-0.5); items = data; countBadge.textContent = `${items.length} photos`; if(!items.length){ return; } showIndex(0); startAutoplay(); debug.textContent = 'Loaded '+items.length+' photos.'; }catch(e){ console.error(e); countBadge.textContent='0'; debug.textContent = e.message; } }
   function collectSelectedTerms(){ const out=[]; grids.forEach(g=> out.push(...Array.from(g.grid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term||b.textContent.trim()))); return out.filter(Boolean); }
 
   function isTypingTarget(t){ if(!t) return false; const tag=(t.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t.isContentEditable; }
@@ -363,60 +395,80 @@
   function toggleName(){ nameBar.classList.toggle('collapsed'); updateNameToggle(); }
   document.addEventListener('keydown', (e)=>{ if(isTypingTarget(e.target)) return; const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now; const key=(e.key||'').toLowerCase(); if (e.code==='Space'||key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; } if (key==='s'){ e.preventDefault(); toggleName(); return; } if (key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; } if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; } const leftSet=new Set(['`','1','2','3','4','5','q','w','e','r','t','a','d','f','g','z','x','c','v','b']); const rightSet=new Set(['6','7','8','9','0','-','=', 'y','u','i','o','p','[',']','\\', 'h','j','k','l',';','\'', 'n','m',',','.','/']); if(e.location===3){ stopAutoplay(); next(); return; } if(rightSet.has(key)){ stopAutoplay(); next(); return; } if(leftSet.has(key)){ stopAutoplay(); prev(); return; } });
 
+  // Swipe
   function onTouchStart(e){ const t=e.changedTouches[0]; mobileSwipeStart = {x:t.clientX, y:t.clientY}; }
-  function onTouchEnd(e){ if(!mobileSwipeStart) return; const t=e.changedTouches[0]; const dx=t.clientX-mobileSwipeStart.x; const dy=t.clientY-mobileSwipeStart.y; const adx=Math.abs(dx), ady=Math.abs(dy); if(adx>40 && ady<60){ if(tabs[0].page.classList.contains('active')){ if(dx<0 && window.innerWidth<768){ setPage(2); return; } if(dx<0){ stopAutoplay(); next(); return; } if(dx>0){ stopAutoplay(); prev(); return; } } else if(tabs[1].page.classList.contains('active')){ if(dx<0 && window.innerWidth<768){ setPage(3); return; } if(dx>0 && window.innerWidth<768){ setPage(1); return; } } else { if(dx>0 && window.innerWidth<768){ setPage(1); return; } } } }
+  function onTouchEnd(e){ if(!mobileSwipeStart) return; const t=e.changedTouches[0]; const dx=t.clientX-mobileSwipeStart.x; const dy=t.clientY-mobileSwipeStart.y; const adx=Math.abs(dx), ady=Math.abs(dy); if(adx>40 && ady<60){ const activeIdx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; if(activeIdx===1){ if(dx<0) { setPage(2); return; } } else if(activeIdx===2){ if(dx<0){ setPage(3); return; } if(dx>0){ setPage(1); return; } } else if(activeIdx>=3 && activeIdx<=4){ if(dx>0){ setPage(1); return; } }
+    } }
   document.addEventListener('touchstart', onTouchStart, {passive:true});
   document.addEventListener('touchend', onTouchEnd, {passive:true});
 
+  // Click zones
   document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
   document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
 
+  // Play/Stop
   cornerPlayStop.addEventListener('click', ()=>{ if(autoplay) stopAutoplay(); else startAutoplay(); });
 
+  // Drawer controls (only relevant on Page 1; but drawer is global)
   speedFab.addEventListener('click', ()=>{ speedDrawer.classList.toggle('open'); });
-  document.getElementById('speedRow').querySelectorAll('.quickBtn').forEach(btn=> btn.addEventListener('click', ()=>{ window.__slideSeconds = Number(btn.dataset.s); updateFineDisplay(); if(autoplay) startAutoplay(); }));
+  document.getElementById('speedRow').querySelectorAll('.quickBtn').forEach(btn=> btn.addEventListener('click', ()=>{ window.__slideSeconds = Number(btn.dataset.s); updateSpeedDisplay(); if(autoplay) startAutoplay(); }));
 
   function clampStep(val){ let v = Math.max(0, Math.min(10, Number(val)||0)); v = Math.round(v/0.2)*0.2; return Number(v.toFixed(1)); }
-  function updateFineDisplay(){ document.getElementById('fineSec').textContent = String(Math.floor(window.__slideSeconds||0)); const ms = Math.round(((window.__slideSeconds||0)-Math.floor(window.__slideSeconds||0))*1000/200)*200; document.getElementById('fineMs').textContent = String(ms); document.getElementById('fineTotal').textContent = (window.__slideSeconds||0).toFixed(1)+'s'; }
-  updateFineDisplay();
+  function updateSpeedDisplay(){ document.getElementById('fineSec').textContent = String(Math.floor(window.__slideSeconds||0)); const ms = Math.round(((window.__slideSeconds||0)-Math.floor(window.__slideSeconds||0))*1000/200)*200; document.getElementById('fineMs').textContent = String(ms); document.getElementById('fineTotal').textContent = (window.__slideSeconds||0).toFixed(1)+'s'; }
+  updateSpeedDisplay();
 
   document.querySelectorAll('#fineRow .stepper').forEach(box=>{
     box.querySelectorAll('button').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const deltaS = Number(btn.dataset.delta);
         window.__slideSeconds = clampStep((window.__slideSeconds||0) + deltaS);
-        updateFineDisplay();
+        updateSpeedDisplay();
         if(autoplay) startAutoplay();
       });
     });
   });
 
-  document.getElementById('nameRow').querySelectorAll('.quickBtn').forEach(btn=> btn.addEventListener('click', ()=>{ nameDelay = Math.round(Number(btn.dataset.n)*1000); toast.textContent='Name delay: '+btn.dataset.n+'s'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 900); }));
+  // Name delay fine controls
+  function setNameDelayFromParts(sec, step){ const s = Math.max(0, Math.min(5, sec)); const snapped = Math.round(s/0.2)*0.2; nameDelay = Math.round(snapped*1000); document.getElementById('nameSec').textContent = String(Math.floor(nameDelay/1000)); const ms = Math.round((nameDelay%1000)/200)*200; document.getElementById('nameMs').textContent = String(ms); document.getElementById('nameTotal').textContent = (nameDelay/1000).toFixed(1)+'s'; }
+  setNameDelayFromParts(0.5);
+  document.querySelectorAll('#nameFineRow .stepper').forEach(box=>{
+    box.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const delta = Number(btn.dataset.delta);
+        const cur = nameDelay/1000; const next = clampStep(cur + delta);
+        setNameDelayFromParts(next);
+      });
+    });
+  });
 
+  // Builder helpers
   function makeTermButton(label, gridEl){ const btn=document.createElement('button'); btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0'; btn.addEventListener('click', ()=>{ const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c); if(c>=3){ btn.dataset.clicks='0'; btn.classList.add('editing'); const prev=btn.dataset.term; const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%'; input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); } }); input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); }); btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return; } btn.classList.toggle('selected'); setTimeout(()=>{ btn.dataset.clicks='0'; }, 400); }); gridEl.appendChild(btn); return btn; }
 
   function gatherAllTiles(){ const tiles=[]; grids.forEach((g,gi)=>{ g.grid.querySelectorAll('.termBtn').forEach((b,idx)=>{ tiles.push({ label:b.dataset.term||b.textContent.trim(), selected:b.classList.contains('selected'), page:gi+2, index:idx }); }); }); return tiles; }
   function renderFromTiles(tiles){ grids.forEach(g=> g.grid.innerHTML=''); tiles.forEach((t,i)=>{ const gi = Math.min(Math.floor(i/16), grids.length-1); const b = makeTermButton(t.label, grids[gi].grid); if(t.selected) b.classList.add('selected'); }); ensureMinTiles(); attachAddHandlers(); }
   function ensureMinTiles(){ const total = grids.reduce((n,g)=> n + g.grid.querySelectorAll('.termBtn').length, 0); for(let i=total;i<48;i++){ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton('Custom term', grids[gi].grid); } }
 
-  function exportJSON(){ const tiles = gatherAllTiles().map(t=>({label:t.label, selected:t.selected})); return JSON.stringify({ version:2, tiles }, null, 2); }
+  function exportJSON(){ const tiles = gatherAllTiles().map(t=>({label:t.label, selected:t.selected})); return JSON.stringify({ version:3, tiles }, null, 2); }
   function importJSON(str){ const obj = JSON.parse(str); if(!obj || !Array.isArray(obj.tiles)) throw new Error('Invalid JSON'); renderFromTiles(obj.tiles.map(x=>({label:x.label, selected:!!x.selected}))); }
 
-  function attachAddHandlers(){ grids.forEach(g=>{ if(g.add){ g.add.onclick = ()=>{ const t=(g.input.value||'').trim(); if(!t) return; const count=g.grid.querySelectorAll('.termBtn').length; if(count>=16){ const nextIndex=grids.indexOf(g)+1; const ng=grids[Math.min(nextIndex, grids.length-1)]; makeTermButton(t, ng.grid); } else { makeTermButton(t, g.grid); } g.input.value=''; }; } if(g.toggle && g.hint){ g.toggle.onclick = ()=> g.hint.style.display = (g.hint.style.display==='none'?'':'none'); } }); }
+  function attachAddHandlers(){ grids.forEach(g=>{ if(g.add){ g.add.onclick = ()=>{ const t=(g.input.value||'').trim(); if(!t) return; const count=g.grid.querySelectorAll('.termBtn').length; if(count>=16){ const nextIndex=grids.indexOf(g)+1; const ng=grids[Math.min(nextIndex, grids.length-1)]; makeTermButton(t, ng.grid); } else { makeTermButton(t, g.grid); } g.input.value=''; }; } });
+    // clear/apply buttons on every category page
+    document.querySelectorAll('.clearAll').forEach(btn=> btn.onclick = ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
+    document.querySelectorAll('.applyAll').forEach(btn=> btn.onclick = ()=>{ setPage(1); applySelection(); });
+  }
 
+  // JSON + limit
+  document.getElementById('exportBtn').addEventListener('click', ()=>{ document.getElementById('jsonBox').value = exportJSON(); toast.textContent='Exported current tiles to JSON'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); });
+  document.getElementById('importBtn').addEventListener('click', ()=>{ try{ importJSON(document.getElementById('jsonBox').value); toast.textContent='Imported categories'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); }catch(e){ toast.textContent='Import failed: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1800); } });
+  document.getElementById('resetBtn').addEventListener('click', ()=>{ populateDefaults(); document.getElementById('jsonBox').value=''; toast.textContent='Reset to defaults'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1000); });
+  limitSelect.addEventListener('change', ()=>{ maxPhotos = Number(limitSelect.value||100); toast.textContent = 'Max photos set to '+maxPhotos; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 900); });
+
+  // Init defaults
   function populateDefaults(){ grids.forEach(g=> g.grid.innerHTML=''); const presets = [ 'Beatles', 'Norwegian celebs', 'US celebs', 'Norwegian politicians', 'Norwegian ceo', 'US ceo', 'World ceo', 'Music producers', "Models of the 50's", "Models of the 80's", 'famous movie characters', 'famous cartoon characters', 'objects', 'household objects', 'clutter home objects', 'cars', 'cars of 2010', 'cars of 2025', 'Norwegian actors','Norwegian musicians','Norwegian comedians','Norwegian writers','UK celebrity','British actors','German footballers','50s movie stars','Danish actors','Swedish politicians','Icelandic singers','Finnish musicians','Italian actors','Spanish footballers','French actors','Canadian singers' ]; presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton(p, grids[gi].grid); }); ensureMinTiles(); attachAddHandlers(); }
-
-  clearSelBtn.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; wrap.innerHTML = '<div class="hint">Selection cleared.</div>'; countBadge.textContent='0'; stopAutoplay(); });
-  applyBtn.addEventListener('click', ()=>{ setPage(1); applySelection(); });
-  modeRandom.addEventListener('click', ()=>{ setMode(false); toast.textContent='Mode: Random photos'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1000); if(items.length){ items = items.sort(()=>Math.random()-0.5); currIndex = -1; showIndex(0); } });
-  modeFixed.addEventListener('click', ()=>{ setMode(true); toast.textContent='Mode: Same sequence'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1000); });
-
-  exportBtn.addEventListener('click', ()=>{ jsonBox.value = exportJSON(); toast.textContent='Exported current tiles to JSON'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); });
-  importBtn.addEventListener('click', ()=>{ try{ importJSON(jsonBox.value); toast.textContent='Imported categories'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); }catch(e){ toast.textContent='Import failed: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1800); } });
-  resetBtn.addEventListener('click', ()=>{ populateDefaults(); jsonBox.value=''; toast.textContent='Reset to defaults'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1000); });
 
   populateDefaults();
   grids[0].grid.querySelectorAll('.termBtn').forEach(b=>{ if(['Norwegian celebs','Norwegian actors','Norwegian musicians'].includes(b.dataset.term)) b.classList.add('selected'); });
+  maxPhotos = Number(limitSelect.value||100);
   applySelection();
 })();
 </script>
