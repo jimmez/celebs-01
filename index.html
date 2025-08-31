@@ -246,7 +246,13 @@
 
   // Tabs
   const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
-  function setPage(idx){ tabs.forEach((t,i)=>{ const active=(i+1)===idx; t.page.classList.toggle('active', active); t.tab.setAttribute('aria-selected', String(active)); }); }
+  function setPage(idx){
+    tabs.forEach((t,i)=>{ const active=(i+1)===idx; t.page.classList.toggle('active', active); t.tab.setAttribute('aria-selected', String(active)); });
+    if (idx===1){ speedFab.style.display='grid'; } else { speedFab.style.display='none'; speedDrawer.classList.remove('open'); }
+  }); });
+    // Hide timing drawer button on non-slideshow pages
+    if (idx===1){ speedFab.style.display='grid'; } else { speedFab.style.display='none'; speedDrawer.classList.remove('open'); }
+  }); }
   tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
   gearBtn.addEventListener('click', ()=> setPage(5));
   nextTabBtn.addEventListener('click', ()=>{ const active = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; setPage(active%5 + 1); });
@@ -330,29 +336,48 @@
         blocks.push(CATEGORY_BLOCKS['objects']());
       }
     });
-    const union = blocks.join('\nUNION\n');
-    return `SELECT ?entity ?entityLabel ?image WHERE {\n${union}\nSERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }\n}\nLIMIT ${maxPhotos}`;
-  }
-
-  async function sparqlQuery(query){
+    const union = blockasync function sparqlQuery(query){
     const endpoint = 'https://query.wikidata.org/sparql';
     const body = new URLSearchParams(); body.set('query', query);
     const res = await fetch(endpoint, { method:'POST', mode:'cors', headers:{ 'Accept':'application/sparql-results+json', 'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8' }, body });
-    if(!res.ok) throw new Error('WDQS HTTP '+res.status);
+    if(!res.ok){ const text = await res.text().catch(()=>'' ); throw new Error('WDQS HTTP '+res.status+' '+text.slice(0,120)); }
     return await res.json();
-  }
-
-  async function fetchWDFromTerms(terms){
+  }tionasync function fetchWDFromTerms(terms){
     const sparql = buildSPARQLFromTerms(terms);
     const data = await sparqlQuery(sparql);
     const rows = data.results.bindings || [];
+    if(!rows.length) throw new Error('No results from Wikidata for: '+terms.join(', '));
     return rows.map(r=>{
       const name = r.entityLabel?.value || 'Untitled';
-      const imageField = r.image?.value || '';
-      let imageUrl = imageField;
-      if (!imageUrl.includes('Special:FilePath')) {
-        let fn = imageUrl;
-        if (fn.startsWith('http')) { try { const u = new URL(fn); const last = decodeURIComponent(u.pathname.split('/').pop()); fn = last.startsWith('File:') ? last : 'File:'+last; } catch {} }
+      let imageField = r.image?.value || '';
+      let imageUrl = '';
+      if (imageField.includes('Special:FilePath/')){
+        imageUrl = imageField + (imageField.includes('?')? '&' : '?') + 'width=1600';
+      } else {
+        let fn = imageField;
+        try{
+          if(fn.startsWith('http')){ const u = new URL(fn); fn = decodeURIComponent(u.pathname.split('/').pop()); }
+        }catch{}
+        fn = fn.replac;
+      let imageField = r.image?.value || '';
+      let imageUrl = '';
+      if (imageField.includes('Special:FilePath/')){
+        imageUrl = imageField + (imageField.includes('?')? '&' : '?') + 'width=1600';
+      } else {
+        // Extract filename
+        let fn = imageField;
+        try{
+          if(fn.startsWith('http')){ const u = new URL(fn); fn = decodeURIComponent(u.pathname.split('/').pop()); }
+        }catch{}
+        fn = fn.replace(/^.*File:/,''); if(!fn) return null;
+        imageUrl = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(fn) + '?width=1600';
+        imageField = 'File:'+fn;
+      }
+      const fileTitle = imageField.startsWith('File:') ? imageField : ('File:'+imageField.replace(/^.*File:/,''));
+      const itemUrl = r.entity?.value || '#';
+      return { name, imageUrl, fileTitle, itemUrl };
+    }).filter(Boolean);
+  }
         if (!fn.startsWith('File:')) fn = 'File:' + fn.replace(/^.*File:/,'');
         imageUrl = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(fn.replace(/^File:/,'')) + '?width=1600';
       } else { if (!/\?width=/.test(imageUrl)) imageUrl += (imageUrl.includes('?')?'&':'?')+'width=1600'; }
@@ -369,11 +394,24 @@
   // Flicker-free show: keep current img until next is ready
   let currentImg=null;
   function swapIn(img){
-    if(currentImg) wrap.removeChild(currentImg);
-    currentImg = img; currentImg.classList.add('photo','show'); wrap.appendChild(currentImg);
+    // Seamless swap: append new, then remove old
+    const previous = currentImg;
+    currentImg = img; currentImg.classList.add('photo','show');
+    wrap.appendChild(currentImg);
+    if(previous){ previous.addEventListener('transitionend', ()=>{ try{ wrap.removeChild(previous); }catch{} }, {once:true}); previous.classList.remove('show'); }
   }
 
-  async function showIndex(i){ if(!items.length) return; currIndex = (i + items.length) % items.length; const it = items[currIndex]; const img = new Image(); img.decoding='async'; img.onload = async ()=>{ img.className='photo show'; swapIn(img); nameBar.classList.add('collapsed'); entityName.innerHTML = `${it.itemUrl && it.itemUrl!=='#' ? `<a href="${it.itemUrl}" target="_blank" rel="noopener" style="color:var(--fg); text-decoration:none">${it.name}</a>` : it.name}`; const { artist, credit, license, filePageUrl } = await fetchAttribution(it.fileTitle); const creditText = artist || credit || ''; caption.innerHTML = `${creditText ? creditText + ' • ' : ''}<a href="${filePageUrl}" target="_blank" rel="noopener">${it.fileTitle}</a>${license? ' • License: '+license : ''}`; downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,''); setTimeout(()=>{ nameBar.classList.remove('collapsed'); updateNameToggle(); }, nameDelay); }; img.onerror = ()=>{ next(); }; img.src = it.imageUrl; }
+  async function showIndex(i){
+    if(!items.length) return;
+    currIndex = (i + items.length) % items.length;
+    const it = items[currIndex];
+    const img = new Image(); img.decoding='async'; img.referrerPolicy='no-referrer';
+    img.onload = async ()=>{
+      img.className='photo show';
+      swapIn(img);
+      nameBar.classList.add('collapsed');
+      entityName.innerHTML = `${it.itemUrl && it.itemUrl!=='#' ? `<a href="${it.itemUrl}" target="_blank" rel="noopener" style="color:var(--fg); text-decoration:none">${it.name}</a>` : it.name}`;
+      try{ const { artist, credit, license, filePageUrl } = await fetchAttribution(it.fileTitle); const creditText = artist || credit || ''; caption.innerHTML = `${creditText ? creditText + ' • ' : ''}<a href="${filePageUrl}" target="_blank" rel="noopener">${it.fileTitle}</a>${license? ' • License: '+license : ''}`; }catch{ capti
   function next(){ showIndex((currIndex + 1) % items.length); }
   function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
 
