@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Celeb Slideshow — Random Photo Fetcher</title>
-  <meta name="description" content="Hands‑free slideshow that auto‑fetches random celebrity photos from Wikidata/Commons with keyboard, swipe, speed control, and a term-combiner builder. Includes floating blue button to reveal quick time buttons, and a collapsible name/credit bar." />
+  <meta name="description" content="Hands‑free slideshow that auto‑fetches celebrity photos from Wikidata/Commons with precise keyboard mapping, swipe, speed controls, term builder, cache reset, and random/fixed sequence modes." />
   <style>
-    :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; }
+    :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto 1fr auto}
@@ -17,6 +17,7 @@
     .btn[disabled]{opacity:.5;cursor:not-allowed}
     .btn.primary{border-color:rgba(96,165,250,.5)}
     .btn.ok{border-color:rgba(52,211,153,.45)}
+    .btn.warn{border-color:rgba(251,191,36,.45)}
     .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
     .controls{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
     label{font-size:12px; color:var(--muted)}
@@ -31,9 +32,9 @@
     .page{display:none; height:100%}
     .page.active{display:block}
 
-    .stage{position:relative; height:calc(100vh - 180px); min-height:360px; overflow:hidden; display:grid; place-items:center}
+    .stage{position:relative; height:calc(100vh - 210px); min-height:360px; overflow:hidden; display:grid; place-items:center}
     .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center}
-    img.photo{max-width:100%; max-height:100%; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6)}
+    img.photo{max-width:85%; max-height:80%; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6)}
 
     .nameBar{position:absolute; left:12px; right:12px; bottom:12px; background:rgba(2,6,23,.78); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 10px; cursor:pointer}
     .nameBar.collapsed{height:18px; overflow:hidden}
@@ -41,11 +42,15 @@
     .caption{font-size:13px; color:var(--muted)}
     .hint{font-size:12px; color:#93a3b8}
 
+    .nameToggle{position:absolute; left:50%; transform:translateX(-50%); bottom:64px; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:#1f2a44; color:#e5eef7; font-weight:700; cursor:pointer}
+
     .builder{padding:12px}
     .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
     .termBtn{padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.12); cursor:pointer; text-align:left; user-select:none}
     .termBtn.selected{outline:2px solid var(--accent); background:rgba(96,165,250,.15)}
-    .termBtn.editing{outline:2px dashed #fbbf24}
+    .termBtn.editing{outline:2px dashed var(--warn)}
+
+    .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
 
     footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); border-top:1px solid rgba(255,255,255,.06)}
     footer a{color:var(--ok); text-decoration:none}
@@ -87,21 +92,26 @@
     <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
       <div class="stage" id="stage">
         <div class="imgwrap" id="imgwrap"><div class="hint">Fetching photos…</div></div>
-        <div class="nameBar collapsed" id="nameBar">
+        <div class="nameBar" id="nameBar">
           <div class="title" id="personName">&nbsp;</div>
           <div class="caption" id="caption"><span class="hint">Tap to show/hide name & credit</span></div>
         </div>
+        <button class="nameToggle" id="nameToggle">Hide name</button>
       </div>
     </section>
 
     <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
       <div class="builder">
-        <div class="hint">Tap a term to select (turns blue). <strong>Triple‑click</strong> a term to edit it. Add your own terms (e.g. "Swedish politicians", "UK celebrity", "50s movie stars"). Press <em>Combine</em> to build the search. The slideshow randomly picks from selected terms.</div>
+        <div class="hint">Click terms to select (blue). <strong>Triple‑click</strong> a term to edit its label. Add your own below. Selected terms are the ONLY ones shown. Switching selection clears the photo cache so results only reflect the current choice(s).</div>
         <div class="grid" id="termGrid"></div>
-        <div style="display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap">
-          <input type="text" id="customTerm" placeholder="Add a term…" />
+        <div class="builderActions">
+          <input type="text" id="customTerm" placeholder="Add a term… e.g. 'Swedish politicians'" />
           <button class="btn ok" id="addTerm">Add</button>
-          <button class="btn primary" id="combineBtn">Combine ▶</button>
+          <button class="btn primary" id="applyBtn">Apply selection</button>
+          <button class="btn warn" id="clearSelBtn">Clear selection</button>
+          <span class="hint">Mode:</span>
+          <button class="btn" id="modeRandom" aria-pressed="true">Random photos</button>
+          <button class="btn" id="modeFixed" aria-pressed="false">Same sequence</button>
           <span class="hint" id="resolveHint"></span>
         </div>
       </div>
@@ -109,12 +119,12 @@
   </main>
 
   <footer>
-    <div>Source: <a href="https://www.wikidata.org/" target="_blank" rel="noopener">Wikidata</a> & <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener">Wikimedia Commons</a>. Keyboard: <kbd>Any key</kbd> = next, <kbd>←</kbd> = previous, <kbd>→</kbd> = next. Swipe: left/right. Autoplay runs if you do nothing.</div>
+    <div>Keyboard on PC: Right‑side keys → <strong>Next</strong> (except <kbd>P</kbd> = play/pause). Left‑side keys → <strong>Previous</strong> (except <kbd>S</kbd> = show/hide name). <kbd>Space</kbd> = next. Arrows also work. While typing/renaming terms, global keys are disabled.</div>
     <div class="sp"></div>
     <a href="#" id="downloadLink" title="Download current image">Download</a>
   </footer>
 
-  <!-- Floating blue ball to toggle quick time buttons -->
+  <!-- Floating blue button to toggle quick time buttons -->
   <button class="fab" id="speedFab" title="Speed">●</button>
   <div class="drawer" id="speedDrawer">
     <div class="quickRow">
@@ -136,6 +146,7 @@
   const stage = document.getElementById('stage');
   const wrap = document.getElementById('imgwrap');
   const nameBar = document.getElementById('nameBar');
+  const nameToggle = document.getElementById('nameToggle');
   const personName = document.getElementById('personName');
   const caption = document.getElementById('caption');
   const countBadge = document.getElementById('countBadge');
@@ -151,7 +162,10 @@
   const termGrid = document.getElementById('termGrid');
   const customTerm = document.getElementById('customTerm');
   const addTerm = document.getElementById('addTerm');
-  const combineBtn = document.getElementById('combineBtn');
+  const applyBtn = document.getElementById('applyBtn');
+  const clearSelBtn = document.getElementById('clearSelBtn');
+  const modeRandom = document.getElementById('modeRandom');
+  const modeFixed = document.getElementById('modeFixed');
   const downloadLink = document.getElementById('downloadLink');
   const toast = document.getElementById('toast');
   const speedFab = document.getElementById('speedFab');
@@ -163,6 +177,7 @@
   let autoplay = true;
   let currIndex = -1;
   let lastKeyTime = 0;
+  let fixedOrder = false; // false = random shuffle, true = fixed sequence
 
   // Defaults (>=25)
   const defaultTerms = [
@@ -187,7 +202,7 @@
 
   async function fetchAttribution(fileTitle){ try{ const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles=' + encodeURIComponent(fileTitle); const res = await fetch(url); const data = await res.json(); const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null; const info = page?.imageinfo?.[0]; const meta = info?.extmetadata || {}; const artist = meta.Artist?.value || ''; const credit = meta.Credit?.value || ''; const license = meta.LicenseShortName?.value || ''; const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle)); return { artist, credit, license, filePageUrl }; }catch(e){ return { artist:'', credit:'', license:'', filePageUrl: 'https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle) }; } }
 
-  function clearImage(){ wrap.innerHTML = '<div class="hint">Loading…</div>'; nameBar.classList.add('collapsed'); }
+  function clearImage(){ wrap.innerHTML = '<div class="hint">Loading…</div>'; }
 
   async function showIndex(i){ if(!items.length) return; currIndex = (i + items.length) % items.length; const it = items[currIndex]; clearImage(); const img = new Image(); img.className='photo'; img.decoding='async'; img.onload = async ()=>{ wrap.innerHTML=''; wrap.appendChild(img); personName.innerHTML = `<a href="${it.itemUrl}" target="_blank" rel="noopener" style="color:var(--fg); text-decoration:none">${it.name}</a>`; const { artist, credit, license, filePageUrl } = await fetchAttribution(it.fileTitle); const creditText = artist || credit || ''; caption.innerHTML = `${creditText ? creditText + ' • ' : ''}<a href="${filePageUrl}" target="_blank" rel="noopener">${it.fileTitle}</a>${license? ' • License: '+license : ''}`; downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,''); }; img.onerror = ()=>{ showToast('Skipped an image that failed to load'); next(); }; img.src = it.imageUrl; }
 
@@ -198,7 +213,21 @@
   function startAutoplay(){ if(timer) clearInterval(timer); const s = clampSeconds(); timer = setInterval(next, s * 1000); autoplay = true; playPauseBtn.textContent='⏸︎ Pause'; }
   function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; playPauseBtn.textContent='▶︎ Play'; }
 
-  async function loadByTerms(terms){ stopAutoplay(); clearImage(); countBadge.textContent='Fetching…'; try{ const data = await fetchWDFromTerms(terms); items = shuffle(data); countBadge.textContent = `${items.length} photos`; if(!items.length){ wrap.innerHTML = '<div class="hint">No results. Try different terms.</div>'; return; } showIndex(0); startAutoplay(); }catch(e){ console.error(e); wrap.innerHTML='<div class="hint">Could not fetch photos right now.</div>'; countBadge.textContent='0'; showToast('Network error fetching data'); } }
+  function setMode(isFixed){ fixedOrder = !!isFixed; modeRandom.setAttribute('aria-pressed', String(!fixedOrder)); modeFixed.setAttribute('aria-pressed', String(fixedOrder)); }
+
+  async function applySelection(){
+    // Clear cache + items when applying new selection
+    items = []; currIndex = -1; wrap.innerHTML = '<div class="hint">Applying selection…</div>'; countBadge.textContent = 'Fetching…';
+    const chosen = Array.from(termGrid.querySelectorAll('.termBtn.selected')).map(b=> b.textContent.trim()).filter(Boolean);
+    if(!chosen.length){ showToast('Select one or more terms first.'); return; }
+    try{
+      let data = await fetchWDFromTerms(chosen);
+      if(!fixedOrder) data = shuffle(data);
+      items = data; countBadge.textContent = `${items.length} photos`;
+      if(!items.length){ wrap.innerHTML = '<div class="hint">No results. Try different terms.</div>'; return; }
+      showIndex(0); startAutoplay();
+    }catch(e){ console.error(e); wrap.innerHTML='<div class="hint">Error fetching photos.</div>'; countBadge.textContent='0'; }
+  }
 
   // Tabs
   function setPage(idx){ if(idx===1){ page1.classList.add('active'); page2.classList.remove('active'); tab1.setAttribute('aria-selected','true'); tab2.setAttribute('aria-selected','false'); } else { page2.classList.add('active'); page1.classList.remove('active'); tab2.setAttribute('aria-selected','true'); tab1.setAttribute('aria-selected','false'); } }
@@ -206,8 +235,31 @@
   tab2.addEventListener('click', ()=> setPage(2));
   openBuilder.addEventListener('click', ()=> setPage(2));
 
-  // Keyboard
-  document.addEventListener('keydown', (e)=>{ const now=Date.now(); if(now - lastKeyTime < 120) return; lastKeyTime = now; if(e.key==='ArrowLeft'){ e.preventDefault(); stopAutoplay(); prev(); return; } if(e.key==='ArrowRight'){ e.preventDefault(); stopAutoplay(); next(); return; } stopAutoplay(); next(); });
+  // Keyboard mapping (disable while typing in inputs)
+  function isTypingTarget(t){ if(!t) return false; const tag = (t.tagName||'').toLowerCase(); return tag==='input' || tag==='textarea' || t.isContentEditable; }
+  function updateNameToggle(){ nameToggle.textContent = nameBar.classList.contains('collapsed') ? 'Show name' : 'Hide name'; }
+  function toggleName(){ nameBar.classList.toggle('collapsed'); updateNameToggle(); }
+
+  document.addEventListener('keydown', (e)=>{
+    if(isTypingTarget(e.target)) return; // do nothing when typing/renaming
+    const now=Date.now(); if(now - lastKeyTime < 120) return; lastKeyTime = now;
+    const key = (e.key || '').toLowerCase();
+    // Space = next
+    if (e.code === 'Space') { e.preventDefault(); stopAutoplay(); next(); return; }
+    // P = play/pause
+    if (key === 'p') { e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; }
+    // S = show/hide name
+    if (key === 's') { e.preventDefault(); toggleName(); return; }
+    // Arrows explicit (still supported)
+    if (key === 'arrowleft') { e.preventDefault(); stopAutoplay(); prev(); return; }
+    if (key === 'arrowright') { e.preventDefault(); stopAutoplay(); next(); return; }
+    // Any other key: left side -> prev, right side -> next (with exceptions above)
+    const leftSet = new Set(['`','1','2','3','4','5','q','w','e','r','t','a','d','f','g','z','x','c','v','b']);
+    const rightSet = new Set(['6','7','8','9','0','-','=', 'y','u','i','o','p','[',']','\\', 'h','j','k','l',';','\'', 'n','m',',','.','/']);
+    if (e.location === 3) { stopAutoplay(); next(); return; } // numpad = right
+    if (rightSet.has(key)) { stopAutoplay(); next(); return; }
+    if (leftSet.has(key)) { stopAutoplay(); prev(); return; }
+  });
 
   // Swipe
   let touchStartX=null, touchStartY=null; stage.addEventListener('touchstart', (e)=>{ const t=e.changedTouches[0]; touchStartX=t.clientX; touchStartY=t.clientY; }, {passive:true}); stage.addEventListener('touchend', (e)=>{ const t=e.changedTouches[0]; const dx=t.clientX - touchStartX; const dy=t.clientY - touchStartY; if(Math.abs(dx) > 40 && Math.abs(dy) < 60){ stopAutoplay(); if(dx<0) next(); else prev(); } }, {passive:true});
@@ -218,8 +270,9 @@
   speed.addEventListener('input', ()=>{ secs.value = speed.value; if(autoplay) startAutoplay(); });
   secs.addEventListener('change', ()=>{ speed.value = Number(secs.value)||2; if(autoplay) startAutoplay(); });
 
-  // Name bar toggle
-  nameBar.addEventListener('click', ()=>{ nameBar.classList.toggle('collapsed'); });
+  // Name controls
+  nameBar.addEventListener('click', toggleName);
+  nameToggle.addEventListener('click', toggleName);
 
   // Floating blue button + quick times
   speedFab.addEventListener('click', ()=>{ speedDrawer.classList.toggle('open'); });
@@ -229,11 +282,20 @@
   function makeTermButton(label){ const btn = document.createElement('button'); btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.clicks='0'; btn.addEventListener('click', ()=>{ const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks = String(c); if(c>=3){ btn.dataset.clicks='0'; btn.classList.add('editing'); const prev = btn.textContent; const input = document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%'; input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ btn.textContent=input.value.trim()||prev; btn.classList.remove('editing'); } }); input.addEventListener('blur', ()=>{ btn.textContent=input.value.trim()||prev; btn.classList.remove('editing'); }); btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return; } btn.classList.toggle('selected'); setTimeout(()=>{ btn.dataset.clicks='0'; }, 400); }); return btn; }
   function populateDefaults(){ termGrid.innerHTML=''; defaultTerms.forEach(t=> termGrid.appendChild(makeTermButton(t))); while(termGrid.children.length < 25){ termGrid.appendChild(makeTermButton('Custom term')); } }
   addTerm.addEventListener('click', ()=>{ const t=(customTerm.value||'').trim(); if(!t) return; termGrid.prepend(makeTermButton(t)); customTerm.value=''; });
-  combineBtn.addEventListener('click', ()=>{ const chosen = Array.from(termGrid.querySelectorAll('.termBtn.selected')).map(b=> b.textContent.trim()).filter(Boolean); if(!chosen.length){ showToast('Select one or more terms first.'); return; } setPage(1); loadByTerms(chosen); });
+  clearSelBtn.addEventListener('click', ()=>{ termGrid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')); items=[]; currIndex=-1; wrap.innerHTML = '<div class="hint">Selection cleared.</div>'; countBadge.textContent='0'; stopAutoplay(); });
+  applyBtn.addEventListener('click', ()=>{ setPage(1); applySelection(); });
+
+  modeRandom.addEventListener('click', ()=>{ setMode(false); showToast('Mode: Random photos'); if(items.length){ // reshuffle current set
+      items = shuffle(items); currIndex = -1; showIndex(0);
+    }
+  });
+  modeFixed.addEventListener('click', ()=>{ setMode(true); showToast('Mode: Same sequence'); /* do not reshuffle */ });
 
   // Initial
   populateDefaults();
-  loadByTerms(['Norwegian actors','Norwegian musicians','Norwegian comedians']);
+  // Default selection: show a few Norwegian categories
+  termGrid.querySelectorAll('.termBtn').forEach(btn=>{ if(['Norwegian actors','Norwegian musicians','Norwegian comedians'].includes(btn.textContent)) btn.classList.add('selected'); });
+  applySelection();
 })();
 </script>
 </body>
