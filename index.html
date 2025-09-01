@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,8 +12,7 @@
     html,body{height:100%}
     body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto 1fr auto}
     header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:50; background:rgba(2,6,23,.6); backdrop-filter:blur(8px) saturate(1.2); border-bottom:1px solid rgba(255,255,255,.06)}
-    h1{font-size:16px; margin:0; transition: color .25s ease;}
-    body.playing h1{ color: var(--ok); } /* logo green while playing */
+    h1{font-size:16px; margin:0}
     .sp{flex:1}
     .iconBtn{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer}
     .btn{display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; user-select:none; font-weight:600}
@@ -36,8 +36,8 @@
     .hotzone.left{left:0; width:33.333%}
     .hotzone.right{right:0; width:66.667%}
 
-    /* Name area at the bottom of the photo; buttons below it */
-    .nameArea{position:absolute; left:50%; transform:translateX(-50%); bottom:24px; display:grid; gap:10px; place-items:center; width:min(92%, 820px)}
+    /* Name area */
+    .nameArea{position:absolute; left:50%; transform:translateX(-50%); bottom:24px; display:grid; gap:8px; place-items:center; width:min(92%, 820px)}
     .nameBar{order:1; width:100%; background:rgba(2,6,23,.88); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 12px; text-align:center}
     .nameBar.collapsed{display:none}
     .title{font-size:22px; font-weight:800}
@@ -73,17 +73,21 @@
     .stepper{display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.06)}
     .stepper .stepVal{min-width:32px; text-align:center; font-weight:800}
 
-    /* 2× width feel */
-    #showThisName { padding-left: 28px; padding-right: 28px; }
-    /* Play/Stop 100% larger horizontally (double width) */
-    #cornerPlayStop { padding-left: 36px; padding-right: 36px; min-width: 220px; }
+    /* ~2× wider feel for these buttons */
+    #showThisName, #cornerPlayStop {
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+
+    /* Logo turns green while playing */
+    body.playing #logo { color: var(--ok); }
 
     @media (max-width: 768px){ .controls .btn, .controls label{display:none} }
   </style>
 </head>
 <body>
   <header>
-    <h1>🎞️ Celeb Slideshow</h1>
+    <h1 id="logo">🎞️ Celeb Slideshow</h1>
     <span class="badge" id="countBadge">—</span>
     <div class="sp"></div>
     <button class="iconBtn" id="gearBtn" title="Settings (JSON import/export)">⚙️</button>
@@ -104,16 +108,13 @@
         <div class="imgwrap" id="imgwrap"></div>
         <div class="hotzone left" id="zoneLeft" title="Previous"></div>
         <div class="hotzone right" id="zoneRight" title="Next"></div>
-
-        <!-- Name at bottom of photo; buttons below -->
         <div class="nameArea">
           <div class="nameBar" id="nameBar">
             <div class="title" id="entityName">&nbsp;</div>
           </div>
           <div class="quickRow" style="justify-content:center; gap:12px; margin-top:6px">
-            <!-- Order: Show (left) → Hide → Link -->
-            <button class="btn" id="showThisName">Show (this photo)</button>
             <button class="btn" id="hideAllNames">Hide names</button>
+            <button class="btn" id="showThisName">Show (this photo)</button>
             <button class="btn" id="openLink">Link</button>
           </div>
         </div>
@@ -244,7 +245,15 @@
 
   // Tabs
   const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
-  function setPage(idx){ tabs.forEach((t,i)=>{ const active=(i+1)===idx; t.page.classList.toggle('active', active); t.tab.setAttribute('aria-selected', String(active)); }); if(idx===1){ speedFab.style.display='grid'; } else { speedFab.style.display='none'; speedDrawer.classList.remove('open'); } }
+  function setPage(idx){
+    tabs.forEach((t,i)=>{
+      const active=(i+1)===idx;
+      t.page.classList.toggle('active', active);
+      t.tab.setAttribute('aria-selected', String(active));
+    });
+    if(idx===1){ speedFab.style.display='grid'; }
+    else { speedFab.style.display='none'; speedDrawer.classList.remove('open'); }
+  }
   tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
   gearBtn.addEventListener('click', ()=> setPage(5));
   nextTabBtn.addEventListener('click', ()=>{ const active = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; setPage(active%5 + 1); });
@@ -276,14 +285,15 @@
   const resetBtn = document.getElementById('resetBtn');
 
   // State
-  let items = []; let timer=null; let autoplay=true; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null;
-  let nameDelay=500;                         // ms
-  let globalHideNames=false;                 // global toggle (S key or button)
-  let perSlideReveal=false;                  // one-shot reveal while hidden
+  let items = []; let timer=null; let autoplay=true; let currIndex=-1; let lastKeyTime=0;
+  let fixedOrder=false; let mobileSwipeStart=null;
+  let nameDelay=500;                     // ms; controlled by drawer
+  let globalHideNames=false;
+  let perSlideReveal=false;              // used once after pressing "Show (this photo)" while names hidden
   let currentLink='#';
   window.__slideSeconds = 2; // default 2s
 
-  // SPARQL helpers
+  // SPARQL block helpers — unified ?entity so non-people (objects/cars) work
   function H(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . BIND(?person AS ?entity) }`; }
   function F(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} BIND(?person AS ?entity) }`; }
   function T(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . BIND(?thing AS ?entity) }`; }
@@ -301,6 +311,11 @@
     "Models of the 80's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1989) || (BOUND(?end) && year(?end) >= 1980) || (!BOUND(?start) && !BOUND(?end)) ) BIND(?person AS ?entity) }`,
     'famous movie characters': () => F([ ' ?person wdt:P31 wd:Q15773347 . ' ]),
     'famous cartoon characters': () => F([ ' { ?person wdt:P31 wd:Q15711870 . } UNION { ?person wdt:P31 wd:Q373494 . } ' ]),
+    'Manga characters': () => F([ ' ?person wdt:P31/wdt:P279* wd:Q15773347 . ' ]),  // fictional characters (manga/anime)
+    'Emotional people': () => H([ ]),             // broad humans with images
+    'People in occupations': () => H([ ]),        // broad humans with images
+    'People with tools': () => H([ ]),            // broad humans with images
+    'People street fashion': () => H([ ]),        // broad humans with images
     'objects': () => T([ ' ?thing wdt:P31/wdt:P279* wd:Q488383 . ' ]),
     'household objects': () => T([ ' { ?thing wdt:P31/wdt:P279* wd:Q478017 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q1491801 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q319541 . } ' ]),
     'clutter home objects': () => T([ ' { ?thing wdt:P31/wdt:P279* wd:Q1491801 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q478017 . } ' ]),
@@ -309,20 +324,26 @@
 
   function parseDynamicTerm(term){
     const t = term.toLowerCase().trim();
-    const yearMatch = t.match(/(\\d{4})/);
-    if (/\\bcars?\\b/.test(t) && yearMatch){
+    const yearMatch = t.match(/(\d{4})/);
+    if (/\bcars?\b/.test(t) && yearMatch){
       const y = parseInt(yearMatch[1],10);
       return `{ ?thing wdt:P18 ?image . { ?thing wdt:P31 wd:Q3231690 . OPTIONAL { ?thing wdt:P571 ?inception . } FILTER(BOUND(?inception) && year(?inception) = ${y}) } BIND(?thing AS ?entity) }`;
     }
-    if (/\\bobjects?\\b/.test(t)) return CATEGORY_BLOCKS['objects']();
+    if (/\bobjects?\b/.test(t)) return CATEGORY_BLOCKS['objects']();
     if (/household/.test(t)) return CATEGORY_BLOCKS['household objects']();
     if (/clutter/.test(t)) return CATEGORY_BLOCKS['clutter home objects']();
-    if (/\\bcars?\\b/.test(t)) return CATEGORY_BLOCKS['cars']();
+    if (/\bcars?\b/.test(t)) return CATEGORY_BLOCKS['cars']();
     return null;
   }
 
   const countryMap = { 'norwegian':'Q20','norway':'Q20','swedish':'Q34','sweden':'Q34','danish':'Q35','denmark':'Q35','finnish':'Q33','finland':'Q33','icelandic':'Q189','iceland':'Q189','british':'Q145','uk':'Q145','american':'Q30','us':'Q30' };
-  const roleMap = { 'actor':'Q33999','actors':'Q33999','actress':'Q33999','musician':'Q639669','singer':'Q177220','politician':'Q82955','model':'Q4610556','director':'Q2526255','footballer':'Q937857' };
+  const roleMap = {
+    'actor':'Q33999','actors':'Q33999','actress':'Q33999',
+    'musician':'Q639669','singer':'Q177220',
+    'politician':'Q82955','model':'Q4610556',
+    'director':'Q2526255','footballer':'Q937857',
+    'rapper':'Q36834','rappers':'Q36834'        // added
+  };
 
   function buildSPARQLFromTerms(terms){
     const blocks = [];
@@ -337,13 +358,15 @@
         const parts = ['?person wdt:P31 wd:Q5 ;'];
         if(countryQ) parts.push(` wdt:P27 wd:${countryQ} ;`);
         if(roleQ) parts.push(` wdt:P106 wd:${roleQ} ;`);
-        parts.push(' wdt:P18 ?image . BIND(?person AS ?entity)'); blocks.push(`{ ${parts.join('')} }`);
+        parts.push(' wdt:P18 ?image . BIND(?person AS ?entity)');
+        blocks.push(`{ ${parts.join('')} }`);
       } else {
-        blocks.push(CATEGORY_BLOCKS['objects']());
+        // default to humans (better than "objects" for vague human-centric prompts)
+        blocks.push(H([]));
       }
     });
-    const union = blocks.join('\\nUNION\\n');
-    return `SELECT ?entity ?entityLabel ?image WHERE {\\n${union}\\nSERVICE wikibase:label { bd:serviceParam wikibase:language \"nb,nn,no,en\". }\\n}\\nLIMIT 300`;
+    const union = blocks.join('\nUNION\n');
+    return `SELECT ?entity ?entityLabel ?image WHERE {\n${union}\nSERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }\n}\nLIMIT 300`;
   }
 
   async function sparqlQuery(query){
@@ -357,7 +380,7 @@
   async function fetchWDFromTerms(terms){
     const sparql = buildSPARQLFromTerms(terms);
     const data = await sparqlQuery(sparql);
-    const rows = data.results.bindings || [];
+    const rows = (data.results && data.results.bindings) || [];
     if(!rows.length) throw new Error('No results for: '+terms.join(', '));
     return rows.map(r=>{
       const name = r.entityLabel?.value || 'Untitled';
@@ -379,10 +402,24 @@
   }
 
   async function fetchAttribution(fileTitle){
-    try{ const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles=' + encodeURIComponent(fileTitle); const res = await fetch(url); const data = await res.json(); const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null; const info = page?.imageinfo?.[0]; const meta = info?.extmetadata || {}; const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle)); return { filePageUrl }; }catch(e){ return { filePageUrl: 'https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle) }; }
+    try{
+      const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles=' + encodeURIComponent(fileTitle);
+      const res = await fetch(url);
+      const data = await res.json();
+      const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null;
+      const info = page?.imageinfo?.[0];
+      const meta = info?.extmetadata || {};
+      const artist = meta.Artist?.value || '';
+      const credit = meta.Credit?.value || '';
+      const license = meta.LicenseShortName?.value || '';
+      const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle));
+      return { artist, credit, license, filePageUrl };
+    }catch(e){
+      return { artist:'', credit:'', license:'', filePageUrl: 'https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle) };
+    }
   }
 
-  // Seamless image swapping
+  // Seamless image swapping (no black/loading)
   let currentImg=null;
   function swapIn(img){
     const previous = currentImg;
@@ -394,41 +431,44 @@
     }
   }
 
-  // --- NAME REVEAL: hide first, reveal after delay once image is shown ---
-  function scheduleNameReveal(){
-    // If names are globally hidden, keep hidden unless user presses "Show (this photo)"
-    if (globalHideNames) return;
-    setTimeout(()=>{ nameBar.classList.remove('collapsed'); }, nameDelay);
-  }
-
-  let currentLink='#';
-
   async function showIndex(i){
     if(!items.length) return;
-    const idx = (i + items.length) % items.length;
-    const it = items[idx];
-    currIndex = idx;
-
+    currIndex = (i + items.length) % items.length;
+    const it = items[currIndex];
     const img = new Image(); img.decoding='async'; img.referrerPolicy='no-referrer';
+
     img.onload = async ()=>{
+      img.className='photo show';
       swapIn(img);
 
-      // Set name text and reset visibility
+      // Set the name immediately; visibility controlled below
       entityName.textContent = it.name;
-      nameBar.classList.add('collapsed'); // start hidden
-      perSlideReveal = false;             // reset one-shot
 
-      // Link (prefer item, else file page)
+      // Link resolution
       const att = await fetchAttribution(it.fileTitle).catch(()=>({filePageUrl:'#'}));
       currentLink = it.itemUrl && it.itemUrl!=='#' ? it.itemUrl : att.filePageUrl || '#';
 
-      // Reveal later (only if global not hidden)
-      scheduleNameReveal();
+      // --- Name reveal timing ---
+      // Always start collapsed for a new slide
+      nameBar.classList.add('collapsed');
 
-      // Download
+      if (!globalHideNames) {
+        // Auto reveal after configured delay
+        setTimeout(()=>{
+          if (!globalHideNames) nameBar.classList.remove('collapsed');
+        }, nameDelay);
+      } else if (perSlideReveal) {
+        // If user chose to reveal this photo while names are globally hidden
+        nameBar.classList.remove('collapsed');
+      }
+      // one-shot
+      perSlideReveal = false;
+
+      // Download link
       downloadLink.href = it.imageUrl;
       downloadLink.download = it.fileTitle.replace(/^File:/,'');
     };
+
     img.onerror = ()=>{ console.warn('Image failed, skipping'); next(); };
     img.src = it.imageUrl;
   }
@@ -441,16 +481,20 @@
     timer = setInterval(next, (window.__slideSeconds||2)*1000);
     autoplay = true;
     cornerPlayStop.textContent='⏹ Stop';
-    document.body.classList.add('playing'); // logo green
+    document.body.classList.add('playing');   // logo green while playing
   }
   function stopAutoplay(){
     if(timer) clearInterval(timer);
     timer=null; autoplay=false;
     cornerPlayStop.textContent='▶️ Play';
-    document.body.classList.remove('playing');
+    document.body.classList.remove('playing'); // logo back to normal
   }
 
-  function setMode(isFixed){ fixedOrder = !!isFixed; modeRandom?.setAttribute('aria-pressed', String(!fixedOrder)); modeFixed?.setAttribute('aria-pressed', String(fixedOrder)); }
+  function setMode(isFixed){
+    fixedOrder = !!isFixed;
+    modeRandom?.setAttribute('aria-pressed', String(!fixedOrder));
+    modeFixed?.setAttribute('aria-pressed', String(fixedOrder));
+  }
 
   async function applySelection(){
     items = []; currIndex = -1; countBadge.textContent = 'Fetching…';
@@ -476,9 +520,17 @@
       debug.textContent = e.message;
     }
   }
-  function collectSelectedTerms(){ const out=[]; grids.forEach(g=> out.push(...Array.from(g.grid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term||b.textContent.trim()))); return out.filter(Boolean); }
+  function collectSelectedTerms(){
+    const out=[];
+    grids.forEach(g=> out.push(...Array.from(g.grid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term||b.textContent.trim())));
+    return out.filter(Boolean);
+  }
 
-  function isTypingTarget(t){ if(!t) return false; const tag=(t.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t.isContentEditable; }
+  function isTypingTarget(t){
+    if(!t) return false;
+    const tag=(t.tagName||'').toLowerCase();
+    return tag==='input'||tag==='textarea'||t.isContentEditable;
+  }
 
   // Hotkeys
   document.addEventListener('keydown', (e)=>{
@@ -526,12 +578,8 @@
     nameBar.classList.toggle('collapsed', globalHideNames);
   });
   showThisNameBtn.addEventListener('click', ()=>{
-    // If globally hidden, show only this slide now (one-shot)
     if(globalHideNames){
       perSlideReveal = true;
-      nameBar.classList.remove('collapsed');
-    } else {
-      // Names are normally delayed; pressing Show forces immediate reveal
       nameBar.classList.remove('collapsed');
     }
   });
@@ -540,7 +588,12 @@
   // Drawer controls (fine-only)
   speedFab.addEventListener('click', ()=>{ speedDrawer.classList.toggle('open'); });
   function clampStep(val){ let v = Math.max(0, Math.min(10, Number(val)||0)); v = Math.round(v/0.2)*0.2; return Number(v.toFixed(1)); }
-  function updateSpeedDisplay(){ document.getElementById('fineSec').textContent = String(Math.floor(window.__slideSeconds||0)); const ms = Math.round(((window.__slideSeconds||0)-Math.floor(window.__slideSeconds||0))*1000/200)*200; document.getElementById('fineMs').textContent = String(ms); document.getElementById('fineTotal').textContent = (window.__slideSeconds||0).toFixed(1)+'s'; }
+  function updateSpeedDisplay(){
+    document.getElementById('fineSec').textContent = String(Math.floor(window.__slideSeconds||0));
+    const ms = Math.round(((window.__slideSeconds||0)-Math.floor(window.__slideSeconds||0))*1000/200)*200;
+    document.getElementById('fineMs').textContent = String(ms);
+    document.getElementById('fineTotal').textContent = (window.__slideSeconds||0).toFixed(1)+'s';
+  }
   function setSlide(seconds){ window.__slideSeconds = clampStep(seconds); updateSpeedDisplay(); if(autoplay) startAutoplay(); }
   updateSpeedDisplay();
   document.querySelectorAll('#fineRow .stepper').forEach(box=>{
@@ -553,7 +606,13 @@
   });
 
   // Name delay fine controls
-  function updateNameDisplay(){ const sec = Math.floor(nameDelay/1000); const ms = Math.round((nameDelay%1000)/200)*200; document.getElementById('nameSec').textContent = String(sec); document.getElementById('nameMs').textContent = String(ms); document.getElementById('nameTotal').textContent = (nameDelay/1000).toFixed(1)+'s'; }
+  function updateNameDisplay(){
+    const sec = Math.floor(nameDelay/1000);
+    const ms = Math.round((nameDelay%1000)/200)*200;
+    document.getElementById('nameSec').textContent = String(sec);
+    document.getElementById('nameMs').textContent = String(ms);
+    document.getElementById('nameTotal').textContent = (nameDelay/1000).toFixed(1)+'s';
+  }
   function setNameDelay(seconds){ const s = clampStep(seconds); nameDelay = Math.round(s*1000); updateNameDisplay(); }
   updateNameDisplay();
   document.querySelectorAll('#nameFineRow .stepper').forEach(box=>{
@@ -563,40 +622,163 @@
   });
 
   // Builder helpers
-  function makeTermButton(label, gridEl){ const btn=document.createElement('button'); btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0'; btn.addEventListener('click', ()=>{ const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c); if(c>=3){ btn.dataset.clicks='0'; btn.classList.add('editing'); const prev=btn.dataset.term; const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%'; input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); } }); input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); }); btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return; } btn.classList.toggle('selected'); setTimeout(()=>{ btn.dataset.clicks='0'; }, 400); }); gridEl.appendChild(btn); return btn; }
+  function makeTermButton(label, gridEl){
+    const btn=document.createElement('button');
+    btn.type='button'; btn.className='termBtn'; btn.textContent=label;
+    btn.dataset.term=label; btn.dataset.clicks='0';
+    btn.addEventListener('click', ()=>{
+      const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c);
+      if(c>=3){
+        btn.dataset.clicks='0'; btn.classList.add('editing');
+        const prev=btn.dataset.term;
+        const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%';
+        input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); } });
+        input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); });
+        btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return;
+      }
+      btn.classList.toggle('selected');
+      setTimeout(()=>{ btn.dataset.clicks='0'; }, 400);
+    });
+    gridEl.appendChild(btn);
+    return btn;
+  }
 
-  function gatherAllTiles(){ const tiles=[]; grids.forEach((g,gi)=>{ g.grid.querySelectorAll('.termBtn').forEach((b,idx)=>{ tiles.push({ label:b.dataset.term||b.textContent.trim(), selected:b.classList.contains('selected'), page:gi+2, index:idx }); }); }); return tiles; }
-  function renderFromTiles(tiles){ grids.forEach(g=> g.grid.innerHTML=''); tiles.forEach((t,i)=>{ const gi = Math.min(Math.floor(i/16), grids.length-1); const b = makeTermButton(t.label, grids[gi].grid); if(t.selected) b.classList.add('selected'); }); ensureMinTiles(); attachAddHandlers(); }
-  function ensureMinTiles(){ const total = grids.reduce((n,g)=> n + g.grid.querySelectorAll('.termBtn').length, 0); for(let i=total;i<48;i++){ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton('Custom term', grids[gi].grid); } }
+  function gatherAllTiles(){
+    const tiles=[];
+    grids.forEach((g,gi)=>{
+      g.grid.querySelectorAll('.termBtn').forEach((b,idx)=>{
+        tiles.push({ label:b.dataset.term||b.textContent.trim(), selected:b.classList.contains('selected'), page:gi+2, index:idx });
+      });
+    });
+    return tiles;
+  }
+  function renderFromTiles(tiles){
+    grids.forEach(g=> g.grid.innerHTML='');
+    tiles.forEach((t,i)=>{
+      const gi = Math.min(Math.floor(i/16), grids.length-1);
+      const b = makeTermButton(t.label, grids[gi].grid);
+      if(t.selected) b.classList.add('selected');
+    });
+    ensureMinTiles(); attachAddHandlers();
+  }
+  function ensureMinTiles(){
+    const total = grids.reduce((n,g)=> n + g.grid.querySelectorAll('.termBtn').length, 0);
+    for(let i=total;i<48;i++){
+      const gi=Math.min(Math.floor(i/16), grids.length-1);
+      makeTermButton('Custom term', grids[gi].grid);
+    }
+  }
 
-  function exportJSON(){ const tiles = gatherAllTiles().map(t=>({label:t.label, selected:t.selected})); return JSON.stringify({ version:3, tiles }, null, 2); }
-  function importJSON(str){ const obj = JSON.parse(str); if(!obj || !Array.isArray(obj.tiles)) throw new Error('Invalid JSON'); renderFromTiles(obj.tiles.map(x=>({label:x.label, selected:!!x.selected}))); }
+  function exportJSON(){
+    const tiles = gatherAllTiles().map(t=>({label:t.label, selected:t.selected}));
+    return JSON.stringify({ version:3, tiles }, null, 2);
+  }
+  function importJSON(str){
+    const obj = JSON.parse(str);
+    if(!obj || !Array.isArray(obj.tiles)) throw new Error('Invalid JSON');
+    renderFromTiles(obj.tiles.map(x=>({label:x.label, selected:!!x.selected})));
+  }
 
-  function attachAddHandlers(){ grids.forEach(g=>{ if(g.add){ g.add.onclick = ()=>{ const t=(g.input.value||'').trim(); if(!t) return; const count=g.grid.querySelectorAll('.termBtn').length; if(count>=16){ const nextIndex=grids.indexOf(g)+1; const ng=grids[Math.min(nextIndex, grids.length-1)]; makeTermButton(t, ng.grid); } else { makeTermButton(t, g.grid); } g.input.value=''; }; } });
+  function attachAddHandlers(){
+    grids.forEach(g=>{
+      if(g.add){
+        g.add.onclick = ()=>{
+          const t=(g.input.value||'').trim();
+          if(!t) return;
+          const count=g.grid.querySelectorAll('.termBtn').length;
+          if(count>=16){
+            const nextIndex=grids.indexOf(g)+1;
+            const ng=grids[Math.min(nextIndex, grids.length-1)];
+            makeTermButton(t, ng.grid);
+          } else {
+            makeTermButton(t, g.grid);
+          }
+          g.input.value='';
+        };
+      }
+    });
     // Clear/Apply on every page
-    clearSelBtn?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
-    clearSelBtn2?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
-    clearSelBtn3?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
+    clearSelBtn?.addEventListener('click', ()=>{
+      grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
+      items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay();
+    });
+    clearSelBtn2?.addEventListener('click', ()=>{
+      grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
+      items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay();
+    });
+    clearSelBtn3?.addEventListener('click', ()=>{
+      grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
+      items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay();
+    });
     applyBtn?.addEventListener('click', ()=>{ setPage(1); applySelection(); });
     applyBtn2?.addEventListener('click', ()=>{ setPage(1); applySelection(); });
     applyBtn3?.addEventListener('click', ()=>{ setPage(1); applySelection(); });
   }
 
-  // JSON
-  exportBtn.addEventListener('click', ()=>{ jsonBox.value = exportJSON(); toast.textContent='Exported current tiles to JSON'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); });
-  importBtn.addEventListener('click', ()=>{ try{ importJSON(jsonBox.value); toast.textContent='Imported categories'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); }catch(e){ toast.textContent='Import failed: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1800); } });
-  resetBtn.addEventListener('click', ()=>{ populateDefaults(); jsonBox.value=''; toast.textContent='Reset to defaults'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1000); });
+  // JSON buttons
+  exportBtn.addEventListener('click', ()=>{
+    jsonBox.value = exportJSON();
+    toast.textContent='Exported current tiles to JSON';
+    toast.style.display='block';
+    setTimeout(()=> toast.style.display='none', 1200);
+  });
+  importBtn.addEventListener('click', ()=>{
+    try{
+      importJSON(jsonBox.value);
+      toast.textContent='Imported categories';
+      toast.style.display='block';
+      setTimeout(()=> toast.style.display='none', 1200);
+    }catch(e){
+      toast.textContent='Import failed: '+e.message;
+      toast.style.display='block';
+      setTimeout(()=> toast.style.display='none', 1800);
+    }
+  });
+  resetBtn.addEventListener('click', ()=>{
+    populateDefaults(); jsonBox.value='';
+    toast.textContent='Reset to defaults';
+    toast.style.display='block';
+    setTimeout(()=> toast.style.display='none', 1000);
+  });
 
-  // Defaults
+  // Defaults (fill Page 2 & 3 first with your new prompts)
   function populateDefaults(){
     grids.forEach(g=> g.grid.innerHTML='');
-    const presets = [ 'Beatles', 'Norwegian celebs', 'US celebs', 'Norwegian politicians', 'Norwegian ceo', 'US ceo', 'World ceo', 'Music producers', "Models of the 50's", "Models of the 80's", 'famous movie characters', 'famous cartoon characters', 'objects', 'household objects', 'clutter home objects', 'cars', 'cars of 2010', 'cars of 2025', 'Norwegian actors','Norwegian musicians','Norwegian comedians','Norwegian writers','UK celebrity','British actors','German footballers','50s movie stars','Danish actors','Swedish politicians','Icelandic singers','Finnish musicians','Italian actors','Spanish footballers','French actors','Canadian singers' ];
-    presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton(p, grids[gi].grid); });
-    ensureMinTiles(); attachAddHandlers();
+
+    const newSet = [
+      // Your new prompts (will be distributed across Page 2 and Page 3 first)
+      'Norwegian celebs','US celebs',
+      'Norwegian rappers','US rappers','Swedish rappers','Danish rappers',
+      'Manga characters','Emotional people','People in occupations',
+      'People with tools','People street fashion',
+
+      // Existing useful presets
+      'Beatles','Norwegian politicians','Norwegian ceo','US ceo','World ceo',
+      'Music producers',"Models of the 50's',"Models of the 80's",
+      'famous movie characters','famous cartoon characters',
+      'objects','household objects','clutter home objects',
+      'cars','cars of 2010','cars of 2025',
+      'Norwegian actors','Norwegian musicians','Norwegian comedians','Norwegian writers',
+      'UK celebrity','British actors','German footballers','50s movie stars',
+      'Danish actors','Swedish politicians','Icelandic singers','Finnish musicians',
+      'Italian actors','Spanish footballers','French actors','Canadian singers'
+    ];
+
+    newSet.forEach((p,i)=>{
+      const gi = Math.min(Math.floor(i/16), grids.length-1); // 16 per page grid
+      makeTermButton(p, grids[gi].grid);
+    });
+
+    ensureMinTiles();
+    attachAddHandlers();
   }
 
+  // Init
   populateDefaults();
-  grids[0].grid.querySelectorAll('.termBtn').forEach(b=>{ if(['Norwegian celebs','Norwegian actors','Norwegian musicians'].includes(b.dataset.term)) b.classList.add('selected'); });
+  // Preselect a few Norwegian sets by default (you can change these)
+  grids[0].grid.querySelectorAll('.termBtn').forEach(b=>{
+    if(['Norwegian celebs','Norwegian actors','Norwegian musicians'].includes(b.dataset.term)) b.classList.add('selected');
+  });
   applySelection();
 })();
 </script>
