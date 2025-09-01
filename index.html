@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -23,55 +24,56 @@
     .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap}
     .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.6)}
     .page{display:none; height:100%}
-    .page.active{display:block}.stage{position:relative; height:calc(100vh - 240px); min-height:360px; overflow:hidden; display:grid; place-items:center}
-.imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center}
-img.photo{max-width:85%; max-height:75%; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6); opacity:0; transition:opacity .18s ease}
-img.photo.show{opacity:1}
+    .page.active{display:block}
 
-.hotzone{position:absolute; top:0; bottom:0}
-.hotzone.left{left:0; width:33.333%}
-.hotzone.right{right:0; width:66.667%}
+    .stage{position:relative; height:calc(100vh - 240px); min-height:360px; overflow:hidden; display:grid; place-items:center}
+    .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center}
+    img.photo{max-width:85%; max-height:75%; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6); opacity:0; transition:opacity .18s ease}
+    img.photo.show{opacity:1}
 
-.nameArea{position:absolute; left:50%; transform:translateX(-50%); bottom:24px; display:grid; gap:8px; place-items:center; width:min(92%, 820px)}
-.nameToggle{order:0; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:#1f2a44; color:#e5eef7; font-weight:700; cursor:pointer}
-.nameBar{order:1; width:100%; background:rgba(2,6,23,.88); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 12px; text-align:center}
-.nameBar.collapsed{display:none}
-.title{font-size:20px; font-weight:800}
-.caption{font-size:13px; color:var(--muted)}
+    .hotzone{position:absolute; top:0; bottom:0}
+    .hotzone.left{left:0; width:33.333%}
+    .hotzone.right{right:0; width:66.667%}
 
-.builder{padding:12px}
-.hintRow{display:flex; gap:10px; align-items:center; margin-bottom:8px}
-.hint{font-size:13px; color:var(--muted)}
-.hintToggle{width:18px; height:18px; border-radius:4px; background:#334155; border:1px solid rgba(255,255,255,.2); cursor:pointer}
+    .nameArea{position:absolute; left:50%; transform:translateX(-50%); bottom:24px; display:grid; gap:8px; place-items:center; width:min(92%, 820px)}
+    .nameToggle{order:0; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:#1f2a44; color:#e5eef7; font-weight:700; cursor:pointer}
+    .nameBar{order:1; width:100%; background:rgba(2,6,23,.88); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 12px; text-align:center}
+    .nameBar.collapsed{display:none}
+    .title{font-size:20px; font-weight:800}
+    .caption{font-size:13px; color:var(--muted)}
 
-.grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
-.termBtn{padding:12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
-.termBtn.selected{outline:2px solid var(--accent); background:#1f2937}
-.termBtn.editing{outline:2px dashed var(--warn)}
+    .builder{padding:12px}
+    .hintRow{display:flex; gap:10px; align-items:center; margin-bottom:8px}
+    .hint{font-size:13px; color:var(--muted)}
+    .hintToggle{width:18px; height:18px; border-radius:4px; background:#334155; border:1px solid rgba(255,255,255,.2); cursor:pointer}
 
-.builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
+    .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
+    .termBtn{padding:12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
+    .termBtn.selected{outline:2px solid var(--accent); background:#1f2937}
+    .termBtn.editing{outline:2px dashed var(--warn)}
 
-footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); border-top:1px solid rgba(255,255,255,.06)}
-footer a{color:var(--ok); text-decoration:none}
+    .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
 
-.toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none}
+    footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); border-top:1px solid rgba(255,255,255,.06)}
+    footer a{color:var(--ok); text-decoration:none}
 
-.fab{position:fixed; right:16px; bottom:16px; width:56px; height:56px; border-radius:50%; background:#3b82f6; color:white; display:grid; place-items:center; font-size:22px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,.35); z-index:60}
-.drawer{position:fixed; left:0; right:0; bottom:-260px; background:rgba(15,23,42,.96); border-top:1px solid rgba(255,255,255,.08); padding:12px; display:grid; gap:12px; transition:bottom .25s ease; z-index:55}
-.drawer.open{bottom:0}
-.quickRow{display:flex; gap:8px; flex-wrap:wrap}
-.quickBtn{padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
+    .toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none}
 
-/* Play/Stop on left, 45% up */
-.playCorner{position:fixed; left:16px; bottom:45vh; z-index:65}
+    .fab{position:fixed; right:16px; bottom:16px; width:56px; height:56px; border-radius:50%; background:#3b82f6; color:white; display:grid; place-items:center; font-size:22px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,.35); z-index:60}
+    .drawer{position:fixed; left:0; right:0; bottom:-260px; background:rgba(15,23,42,.96); border-top:1px solid rgba(255,255,255,.08); padding:12px; display:grid; gap:12px; transition:bottom .25s ease; z-index:55}
+    .drawer.open{bottom:0}
+    .quickRow{display:flex; gap:8px; flex-wrap:wrap}
+    .quickBtn{padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
 
-.debug{position:fixed; left:12px; bottom:60px; font-size:11px; color:#9fb7d6; opacity:.7}
+    /* Play/Stop on left, 45% up */
+    .playCorner{position:fixed; left:16px; bottom:45vh; z-index:65}
 
-.stepper{display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.06)}
-.stepper .stepVal{min-width:32px; text-align:center; font-weight:800}
+    .debug{position:fixed; left:12px; bottom:60px; font-size:11px; color:#9fb7d6; opacity:.7}
 
-@media (max-width: 768px){ .controls .btn, .controls label{display:none} }
+    .stepper{display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.06)}
+    .stepper .stepVal{min-width:32px; text-align:center; font-weight:800}
 
+    @media (max-width: 768px){ .controls .btn, .controls label{display:none} }
   </style>
 </head>
 <body>
@@ -81,13 +83,17 @@ footer a{color:var(--ok); text-decoration:none}
     <div class="sp"></div>
     <button class="iconBtn" id="gearBtn" title="Settings (JSON import/export)">⚙️</button>
     <button class="iconBtn" id="nextTabBtn" title="Next page">➡️</button>
-  </header>  <nav class="tabs" role="tablist">
+  </header>
+
+  <nav class="tabs" role="tablist">
     <button class="tab" role="tab" aria-controls="page1" aria-selected="true" id="tab1">Page 1: Slideshow</button>
     <button class="tab" role="tab" aria-controls="page2" aria-selected="false" id="tab2">Page 2: Categories A</button>
     <button class="tab" role="tab" aria-controls="page3" aria-selected="false" id="tab3">Page 3: Categories B</button>
     <button class="tab" role="tab" aria-controls="page4" aria-selected="false" id="tab4">Page 4: Categories C</button>
     <button class="tab" role="tab" aria-controls="page5" aria-selected="false" id="tab5">Page 5: Settings</button>
-  </nav>  <main>
+  </nav>
+
+  <main>
     <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
       <div class="stage" id="stage">
         <div class="imgwrap" id="imgwrap"></div>
@@ -101,68 +107,76 @@ footer a{color:var(--ok); text-decoration:none}
           </div>
         </div>
       </div>
-    </section><section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
-  <div class="builder">
-    <div class="hintRow"><div class="hintToggle" id="hintToggle2"></div><div class="hint" id="hint2">Tap to select (blue). Triple‑click to edit. Apply clears cache and loads only selected. <a href="#" id="linkP3">Go to Page 3</a> • <a href="#" id="linkP4">Page 4</a> • <a href="#" id="linkP5">Settings</a> • <a href="#" id="linkBack1">Back to Page 1</a></div></div>
-    <div class="grid" id="termGrid1"></div>
-    <div class="builderActions">
-      <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
-      <button class="btn ok" id="addTerm1">Add</button>
-      <button class="btn primary" id="applyBtn">Apply selection</button>
-      <button class="btn danger" id="clearSelBtn">Clear selection</button>
-      <span class="hint">Mode:</span>
-      <button class="btn" id="modeRandom" aria-pressed="true">Random photos</button>
-      <button class="btn" id="modeFixed" aria-pressed="false">Same sequence</button>
-    </div>
-  </div>
-</section>
+    </section>
 
-<section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
-  <div class="builder">
-    <div class="hintRow"><div class="hintToggle" id="hintToggle3"></div><div class="hint" id="hint3"><a href="#" id="linkP2">Page 2</a> • <a href="#" id="linkP4b">Page 4</a> • <a href="#" id="linkP5b">Settings</a> • <a href="#" id="linkBack2">Back to Page 1</a></div></div>
-    <div class="grid" id="termGrid2"></div>
-    <div class="builderActions">
-      <input type="text" id="customTerm2" placeholder="Add a custom term…" />
-      <button class="btn ok" id="addTerm2">Add</button>
-      <button class="btn primary" id="applyBtn2">Apply selection</button>
-      <button class="btn danger" id="clearSelBtn2">Clear selection</button>
-    </div>
-  </div>
-</section>
-
-<section id="page4" class="page" role="tabpanel" aria-labelledby="tab4">
-  <div class="builder">
-    <div class="hintRow"><div class="hintToggle" id="hintToggle4"></div><div class="hint" id="hint4"><a href="#" id="linkP2c">Page 2</a> • <a href="#" id="linkP3c">Page 3</a> • <a href="#" id="linkP5c">Settings</a> • <a href="#" id="linkBack3">Back to Page 1</a></div></div>
-    <div class="grid" id="termGrid3"></div>
-    <div class="builderActions">
-      <input type="text" id="customTerm3" placeholder="Add a custom term…" />
-      <button class="btn ok" id="addTerm3">Add</button>
-      <button class="btn primary" id="applyBtn3">Apply selection</button>
-      <button class="btn danger" id="clearSelBtn3">Clear selection</button>
-    </div>
-  </div>
-</section>
-
-<section id="page5" class="page" role="tabpanel" aria-labelledby="tab5">
-  <div class="builder">
-    <div class="hintRow"><div class="hintToggle" id="hintToggle5"></div><div class="hint" id="hint5">Settings: Export/Import categories as JSON. <a href="#" id="linkBack4">Back to Page 1</a></div></div>
-    <div style="display:grid; gap:10px; max-width:840px">
-      <button class="btn primary" id="exportBtn">Export categories → JSON</button>
-      <textarea id="jsonBox" placeholder='Paste JSON here to import…'></textarea>
-      <div style="display:flex; gap:8px; flex-wrap:wrap">
-        <button class="btn ok" id="importBtn">Import JSON</button>
-        <button class="btn warn" id="resetBtn">Reset to defaults</button>
+    <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
+      <div class="builder">
+        <div class="hintRow"><div class="hintToggle" id="hintToggle2"></div><div class="hint" id="hint2">Tap to select (blue). Triple‑click to edit. Apply clears cache and loads only selected. <a href="#" id="linkP3">Go to Page 3</a> • <a href="#" id="linkP4">Page 4</a> • <a href="#" id="linkP5">Settings</a> • <a href="#" id="linkBack1">Back to Page 1</a></div></div>
+        <div class="grid" id="termGrid1"></div>
+        <div class="builderActions">
+          <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
+          <button class="btn ok" id="addTerm1">Add</button>
+          <button class="btn primary" id="applyBtn">Apply selection</button>
+          <button class="btn danger" id="clearSelBtn">Clear selection</button>
+          <span class="hint">Mode:</span>
+          <button class="btn" id="modeRandom" aria-pressed="true">Random photos</button>
+          <button class="btn" id="modeFixed" aria-pressed="false">Same sequence</button>
+        </div>
       </div>
-    </div>
-  </div>
-</section>
+    </section>
 
-  </main>  <footer>
+    <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
+      <div class="builder">
+        <div class="hintRow"><div class="hintToggle" id="hintToggle3"></div><div class="hint" id="hint3"><a href="#" id="linkP2">Page 2</a> • <a href="#" id="linkP4b">Page 4</a> • <a href="#" id="linkP5b">Settings</a> • <a href="#" id="linkBack2">Back to Page 1</a></div></div>
+        <div class="grid" id="termGrid2"></div>
+        <div class="builderActions">
+          <input type="text" id="customTerm2" placeholder="Add a custom term…" />
+          <button class="btn ok" id="addTerm2">Add</button>
+          <button class="btn primary" id="applyBtn2">Apply selection</button>
+          <button class="btn danger" id="clearSelBtn2">Clear selection</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="page4" class="page" role="tabpanel" aria-labelledby="tab4">
+      <div class="builder">
+        <div class="hintRow"><div class="hintToggle" id="hintToggle4"></div><div class="hint" id="hint4"><a href="#" id="linkP2c">Page 2</a> • <a href="#" id="linkP3c">Page 3</a> • <a href="#" id="linkP5c">Settings</a> • <a href="#" id="linkBack3">Back to Page 1</a></div></div>
+        <div class="grid" id="termGrid3"></div>
+        <div class="builderActions">
+          <input type="text" id="customTerm3" placeholder="Add a custom term…" />
+          <button class="btn ok" id="addTerm3">Add</button>
+          <button class="btn primary" id="applyBtn3">Apply selection</button>
+          <button class="btn danger" id="clearSelBtn3">Clear selection</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="page5" class="page" role="tabpanel" aria-labelledby="tab5">
+      <div class="builder">
+        <div class="hintRow"><div class="hintToggle" id="hintToggle5"></div><div class="hint" id="hint5">Settings: Export/Import categories as JSON. <a href="#" id="linkBack4">Back to Page 1</a></div></div>
+        <div style="display:grid; gap:10px; max-width:840px">
+          <button class="btn primary" id="exportBtn">Export categories → JSON</button>
+          <textarea id="jsonBox" placeholder='Paste JSON here to import…'></textarea>
+          <div style="display:flex; gap:8px; flex-wrap:wrap">
+            <button class="btn ok" id="importBtn">Import JSON</button>
+            <button class="btn warn" id="resetBtn">Reset to defaults</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
     <div>PC keys: Right‑side → <strong>Next</strong> (except <kbd>P</kbd> = play/pause). Left‑side → <strong>Previous</strong> (except <kbd>S</kbd> = name). <kbd>Space</kbd>/<kbd>P</kbd> = play/pause. Arrows work. While typing/renaming, hotkeys are disabled. Mobile: swipe left/right to switch pages.</div>
     <div class="sp"></div>
     <a href="#" id="downloadLink" title="Download current image">Download</a>
-  </footer>  <!-- Play/Stop on left @45% -->  <div class="playCorner"><button class="btn primary" id="cornerPlayStop">⏯️ Play/Stop</button></div>  <!-- Timing drawer (fine-only) --><button class="fab" id="speedFab" title="Speed / Name delay">●</button>
+  </footer>
 
+  <!-- Play/Stop on left @45% -->
+  <div class="playCorner"><button class="btn primary" id="cornerPlayStop">⏯️ Play/Stop</button></div>
+
+  <!-- Timing drawer (fine-only) -->
+  <button class="fab" id="speedFab" title="Speed / Name delay">●</button>
   <div class="drawer" id="speedDrawer">
     <div><strong>Slide speed</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
     <div class="quickRow" id="fineRow">
@@ -177,23 +191,28 @@ footer a{color:var(--ok); text-decoration:none}
         <button class="quickBtn" data-delta="0.2">＋0.2s</button>
       </div>
       <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="fineTotal">2.0s</strong></div>
-    </div><div><strong>Name reveal delay</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
-<div class="quickRow" id="nameFineRow">
-  <div class="stepper" data-type="nsec">
-    <button class="quickBtn" data-delta="-1">−1s</button>
-    <span class="stepVal" id="nameSec">0</span><span class="hint"> s</span>
-    <button class="quickBtn" data-delta="1">＋1s</button>
-  </div>
-  <div class="stepper" data-type="nms">
-    <button class="quickBtn" data-delta="-0.2">−0.2s</button>
-    <span class="stepVal" id="nameMs">0</span><span class="hint"> ms</span>
-    <button class="quickBtn" data-delta="0.2">＋0.2s</button>
-  </div>
-  <div class="stepperDisplay"><span class="hint">Total:</span> <strong id=\"nameTotal\">1.0s<\/strong></div>
-</div>
+    </div>
 
-  </div>  <div class="toast" id="toast"></div>
-  <div class="debug" id="debug"></div><script>
+    <div><strong>Name reveal delay</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
+    <div class="quickRow" id="nameFineRow">
+      <div class="stepper" data-type="nsec">
+        <button class="quickBtn" data-delta="-1">−1s</button>
+        <span class="stepVal" id="nameSec">0</span><span class="hint"> s</span>
+        <button class="quickBtn" data-delta="1">＋1s</button>
+      </div>
+      <div class="stepper" data-type="nms">
+        <button class="quickBtn" data-delta="-0.2">−0.2s</button>
+        <span class="stepVal" id="nameMs">0</span><span class="hint"> ms</span>
+        <button class="quickBtn" data-delta="0.2">＋0.2s</button>
+      </div>
+      <div class="stepperDisplay"><span class="hint">Total:</span> <strong id=\"nameTotal\">1.0s<\/strong></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="debug" id="debug"></div>
+
+<script>
 (function(){
   // Elements
   const wrap = document.getElementById('imgwrap');
@@ -459,5 +478,6 @@ footer a{color:var(--ok); text-decoration:none}
   grids[0].grid.querySelectorAll('.termBtn').forEach(b=>{ if(['Norwegian celebs','Norwegian actors','Norwegian musicians'].includes(b.dataset.term)) b.classList.add('selected'); });
   applySelection();
 })();
-</script></body>
+</script>
+</body>
 </html>
