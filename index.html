@@ -1,26 +1,30 @@
+<!-- v.17 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Celeb Slideshow — Random Photo Fetcher</title>
-<meta name="description" content="Slideshow that auto‑fetches photos from Wikidata/Commons. Seamless swaps, mobile swipe, multi-page categories with JSON import/export. Name centered with global Hide and per-photo Show, separate Link button. Fine-only timing controls (sec ±1, ±0.2s)." />
+<title>Celeb Slideshow — Random Photo Fetcher (v17)</title>
+<meta name="description" content="Slideshow that auto-fetches photos from Wikidata/Commons. Seamless swaps, mobile swipe, multi-page categories with JSON import/export. Name centered with global Hide and per-photo Show, separate Link button. Fine-only timing controls (sec ±1, ±0.2s). v17" />
 <style>
-  :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; }
+  :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; --rail:#0d1420; --railPlay:#155e31; }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto 1fr auto}
+
   header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:50; background:rgba(2,6,23,.6); backdrop-filter:blur(8px) saturate(1.2); border-bottom:1px solid rgba(255,255,255,.06)}
   h1{font-size:16px; margin:0}
   .sp{flex:1}
   .iconBtn{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer}
-  .btn{display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; user-select:none; font-weight:600}
+
+  .btn{display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; user-select:none; font-weight:700}
   .btn.wide{padding-left:28px; padding-right:28px}
   .btn.primary{border-color:rgba(96,165,250,.6); background:rgba(96,165,250,.15)}
   .btn.ok{border-color:rgba(52,211,153,.6); background:rgba(52,211,153,.15)}
   .btn.warn{border-color:rgba(251,191,36,.6); background:rgba(251,191,36,.15)}
   .btn.danger{border-color:rgba(248,113,113,.7); background:rgba(248,113,113,.18)}
-  .btn.playing{border-color:rgba(52,211,153,.8); background:rgba(52,211,153,.25)}
+  .btn.playing{border-color:rgba(52,211,153,.9); background:rgba(52,211,153,.28)}
+
   .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
 
   .tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:rgba(2,6,23,.35); overflow:auto}
@@ -29,21 +33,48 @@
   .page{display:none; height:100%}
   .page.active{display:block}
 
-  .stage{position:relative; height:calc(100vh - 240px); min-height:360px; overflow:hidden; display:grid; place-items:center}
+  /* Left rail that never overlaps the image */
+  .leftRail{
+    position:fixed; left:0; top:0; bottom:0; width:74px; background:linear-gradient(180deg,var(--rail),rgba(8,12,20,.9));
+    border-right:1px solid rgba(255,255,255,.06); z-index:65; display:grid; grid-template-rows:1fr auto 1fr; place-items:center;
+  }
+  .leftRail::before{
+    content:''; position:absolute; top:0; bottom:0; left:0; width:6px; background:rgba(255,255,255,.06);
+  }
+  .leftRail::after{
+    content:''; position:absolute; top:0; bottom:0; left:0; width:6px; background:transparent; transition:background .18s ease;
+  }
+  .leftRail.playing::after{ background:var(--ok); }
+
+  .leftRailSpacer{ width:74px; } /* pushes content so photo never sits under the rail */
+
+  .playButtonBig{
+    width:64px; height:64px; border-radius:16px; font-size:20px;
+    display:grid; place-items:center;
+  }
+
+  .stage{
+    position:relative; height:calc(100vh - 240px); min-height:360px; overflow:hidden; display:grid; grid-template-columns:auto 1fr; /* room for leftRailSpacer */
+    align-items:center; justify-items:center;
+  }
   .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center}
   img.photo{max-width:85%; max-height:75%; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6); opacity:0; transition:opacity .18s ease}
   img.photo.show{opacity:1}
 
   /* Click/tap zones */
   .hotzone{position:absolute; top:0; bottom:0}
-  .hotzone.left{left:0; width:33.333%}
+  .hotzone.left{left:74px; width:calc(33.333% - 74px)} /* start after rail */
   .hotzone.right{right:0; width:66.667%}
 
-  /* Name area centered */
-  .nameArea{position:absolute; left:50%; transform:translateX(-50%); bottom:24px; display:grid; gap:8px; place-items:center; width:min(92%, 820px)}
-  .nameBar{order:1; width:100%; background:rgba(2,6,23,.88); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 12px; text-align:center}
+  /* Name overlay takes ~30% of bottom */
+  .nameArea{
+    position:absolute; left:0; right:0; bottom:0; height:30%; display:grid; place-items:center; padding:8px; z-index:40
+  }
+  .nameBackdrop{position:absolute; inset:0; background:linear-gradient(180deg, rgba(2,6,23,0) 0%, rgba(2,6,23,.75) 35%, rgba(2,6,23,.92) 100%)}
+  .nameLayer{position:relative; width:min(92%, 900px); display:grid; gap:10px; justify-items:center}
+  .nameBar{width:100%; background:transparent; border:none; padding:0; text-align:center}
   .nameBar.collapsed{display:none}
-  .title{font-size:22px; font-weight:800}
+  .title{font-size:24px; font-weight:900; text-shadow:0 2px 12px rgba(0,0,0,.8)}
 
   .builder{padding:12px}
   .hintRow{display:flex; gap:10px; align-items:center; margin-bottom:8px}
@@ -62,22 +93,23 @@
 
   .toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none}
 
-  /* Floating blue button + drawer */
+  /* Blue FAB + drawer */
   .fab{position:fixed; right:16px; bottom:16px; width:56px; height:56px; border-radius:50%; background:#3b82f6; color:white; display:grid; place-items:center; font-size:22px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,.35); z-index:60}
   .drawer{position:fixed; left:0; right:0; bottom:-260px; background:rgba(15,23,42,.96); border-top:1px solid rgba(255,255,255,.08); padding:12px; display:grid; gap:12px; transition:bottom .25s ease; z-index:55}
   .drawer.open{bottom:0}
   .quickRow{display:flex; gap:8px; flex-wrap:wrap}
   .quickBtn{padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
 
-  /* Play/Stop on left, 45% up */
-  .playCorner{position:fixed; left:16px; bottom:45vh; z-index:65}
-
   .debug{position:fixed; left:12px; bottom:60px; font-size:11px; color:#9fb7d6; opacity:.7}
 
   .stepper{display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.06)}
   .stepper .stepVal{min-width:40px; text-align:center; font-weight:800}
 
-  @media (max-width: 768px){ .controls .btn, .controls label{display:none} }
+  @media (max-width: 768px){
+    .leftRail{width:64px}
+    .leftRailSpacer{width:64px}
+    .hotzone.left{left:64px; width:calc(33.333% - 64px)}
+  }
 </style>
 </head>
 <body>
@@ -100,15 +132,26 @@
 <main>
   <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
     <div class="stage" id="stage">
+      <div class="leftRail" id="leftRail">
+        <div></div>
+        <button class="btn primary playButtonBig" id="cornerPlayStop" title="Play / Stop">⏯️</button>
+        <div></div>
+      </div>
+      <div class="leftRailSpacer" aria-hidden="true"></div>
+
       <div class="imgwrap" id="imgwrap"></div>
       <div class="hotzone left" id="zoneLeft" title="Previous"></div>
       <div class="hotzone right" id="zoneRight" title="Next"></div>
+
       <div class="nameArea">
-        <div class="nameBar" id="nameBar"><div class="title" id="entityName">&nbsp;</div></div>
-        <div class="quickRow" style="justify-content:center; gap:12px; margin-top:6px">
-          <button class="btn wide" id="hideAllNames">Hide names</button>
-          <button class="btn wide" id="showThisName">Show (this photo)</button>
-          <button class="btn wide" id="openLink">Link</button>
+        <div class="nameBackdrop"></div>
+        <div class="nameLayer">
+          <div class="nameBar" id="nameBar"><div class="title" id="entityName">&nbsp;</div></div>
+          <div class="quickRow" style="justify-content:center; gap:12px; margin-top:4px">
+            <button class="btn wide" id="hideAllNames">Hide names</button>
+            <button class="btn wide" id="showThisName">Show (this photo)</button>
+            <button class="btn wide" id="openLink">Link</button>
+          </div>
         </div>
       </div>
     </div>
@@ -116,7 +159,7 @@
 
   <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
     <div class="builder">
-      <div class="hintRow"><div class="hintToggle" id="hintToggle2"></div><div class="hint" id="hint2">Tap to select (blue). Triple‑click to edit. Apply clears cache and loads only selected. <a href="#" id="linkP3">Go to Page 3</a> • <a href="#" id="linkP4">Page 4</a> • <a href="#" id="linkP5">Settings</a> • <a href="#" id="linkBack1">Back to Page 1</a></div></div>
+      <div class="hintRow"><div class="hintToggle" id="hintToggle2"></div><div class="hint" id="hint2">Tap to select (blue). Triple-click to edit. Apply clears cache and loads only selected. <a href="#" id="linkP3">Go to Page 3</a> • <a href="#" id="linkP4">Page 4</a> • <a href="#" id="linkP5">Settings</a> • <a href="#" id="linkBack1">Back to Page 1</a></div></div>
       <div class="grid" id="termGrid1"></div>
       <div class="builderActions">
         <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
@@ -172,13 +215,10 @@
 </main>
 
 <footer>
-  <div>PC keys: Right‑side → <strong>Next</strong> (except <kbd>P</kbd> = play/pause). Left‑side → <strong>Previous</strong> (except <kbd>S</kbd> = name). <kbd>Space</kbd>/<kbd>P</kbd> = play/pause. Arrows work. While typing/renaming, hotkeys are disabled. Mobile: swipe left/right to switch pages.</div>
+  <div>PC keys: Right-side → <strong>Next</strong> (except <kbd>P</kbd> = play/pause). Left-side → <strong>Previous</strong> (except <kbd>S</kbd> = name). <kbd>Space</kbd>/<kbd>P</kbd> = play/pause. Arrows work. While typing/renaming, hotkeys are disabled. Mobile: swipe left/right to switch pages.</div>
   <div class="sp"></div>
   <a href="#" id="downloadLink" title="Download current image">Download</a>
 </footer>
-
-<!-- Play/Stop on left @45% -->
-<div class="playCorner"><button class="btn primary wide" id="cornerPlayStop">⏯️ Play/Stop</button></div>
 
 <!-- Timing drawer (fine-only) -->
 <button class="fab" id="speedFab" title="Speed / Name delay">●</button>
@@ -192,7 +232,7 @@
     </div>
     <div class="stepper" data-type="ms">
       <button class="quickBtn" data-delta="-0.2">−0.2s</button>
-      <span class="stepVal" id="fineMs">0</span><span class="hint"> ms</span>
+      <span class="stepVal" id="fineMs">0.0</span><span class="hint"> s</span>
       <button class="quickBtn" data-delta="0.2">＋0.2s</button>
     </div>
     <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="fineTotal">2.0s</strong></div>
@@ -207,7 +247,7 @@
     </div>
     <div class="stepper" data-type="nms">
       <button class="quickBtn" data-delta="-0.2">−0.2s</button>
-      <span class="stepVal" id="nameMs">0.0</span><span class="hint"> s</span>
+      <span class="stepVal" id="nameMs">0.5</span><span class="hint"> s</span>
       <button class="quickBtn" data-delta="0.2">＋0.2s</button>
     </div>
     <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="nameTotal">0.5s</strong></div>
@@ -220,7 +260,7 @@
 <script>
 (function(){
   // Elements
-  const wrap = document.getElementById('imgwrap');
+  const imgwrap = document.getElementById('imgwrap');
   const nameBar = document.getElementById('nameBar');
   const entityName = document.getElementById('entityName');
   const hideAllNamesBtn = document.getElementById('hideAllNames');
@@ -235,14 +275,14 @@
   const gearBtn = document.getElementById('gearBtn');
   const nextTabBtn = document.getElementById('nextTabBtn');
   const cornerPlayStop = document.getElementById('cornerPlayStop');
+  const leftRail = document.getElementById('leftRail');
 
   // Tabs
   const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
   function setPage(idx){
     tabs.forEach((t,i)=>{ const active=(i+1)===idx; t.page.classList.toggle('active', active); t.tab.setAttribute('aria-selected', String(active)); });
     const onSlide = idx===1;
-    // Hide floating controls away from slideshow page so they don't cover Apply/Clear
-    document.querySelector('.playCorner').style.display = onSlide? 'block':'none';
+    leftRail.style.display = onSlide? 'grid':'none';
     speedFab.style.display = onSlide? 'grid':'none';
     if(!onSlide){ speedDrawer.classList.remove('open'); }
   }
@@ -277,10 +317,10 @@
   const resetBtn = document.getElementById('resetBtn');
 
   // State
-  let items = []; let timer=null; let autoplay=false; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null; let nameDelay=500; let globalHideNames=false; let perSlideReveal=false; let currentLink='#';
+  let items = []; let timer=null; let autoplay=false; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let nameDelay=500; let globalHideNames=true; let perSlideReveal=false; let currentLink='#';
   window.__slideSeconds = 2; // default 2s
 
-  // SPARQL block helpers — unified ?entity so non-people (objects/cars) work
+  // SPARQL block helpers — unified ?entity
   function H(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . BIND(?person AS ?entity) }`; }
   function F(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} BIND(?person AS ?entity) }`; }
   function T(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . BIND(?thing AS ?entity) }`; }
@@ -289,15 +329,18 @@
     'Beatles': () => H([ 'wdt:P463 wd:Q1299 ;' ]),
     'Norwegian celebs': () => H([ 'wdt:P27 wd:Q20 ;' ]),
     'US celebs': () => H([ 'wdt:P27 wd:Q30 ;' ]),
+    'American celebrities': () => H([ 'wdt:P27 wd:Q30 ;' ]),
     'Norwegian politicians': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P106 wd:Q82955 ;' ]),
     'Norwegian ceo': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P39 wd:Q484876 ;' ]),
     'US ceo': () => H([ 'wdt:P27 wd:Q30 ;', 'wdt:P39 wd:Q484876 ;' ]),
+    'American CEOs': () => H([ 'wdt:P27 wd:Q30 ;', 'wdt:P39 wd:Q484876 ;' ]),
     'World ceo': () => H([ 'wdt:P39 wd:Q484876 ;' ]),
     'Music producers': () => H([ 'wdt:P106 wd:Q183945 ;' ]),
     "Models of the 50's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1959) || (BOUND(?end) && year(?end) >= 1950) || (!BOUND(?start) && !BOUND(?end)) ) BIND(?person AS ?entity) }`,
     "Models of the 80's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1989) || (BOUND(?end) && year(?end) >= 1980) || (!BOUND(?start) && !BOUND(?end)) ) BIND(?person AS ?entity) }`,
     'famous movie characters': () => F([ ' ?person wdt:P31 wd:Q15773347 . ' ]),
     'famous cartoon characters': () => F([ ' { ?person wdt:P31 wd:Q15711870 . } UNION { ?person wdt:P31 wd:Q373494 . } ' ]),
+    // objects
     'objects': () => T([ ' ?thing wdt:P31/wdt:P279* wd:Q488383 . ' ]),
     'household objects': () => T([ ' { ?thing wdt:P31/wdt:P279* wd:Q478017 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q1491801 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q319541 . } ' ]),
     'clutter home objects': () => T([ ' { ?thing wdt:P31/wdt:P279* wd:Q1491801 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q478017 . } ' ]),
@@ -311,6 +354,39 @@
       const y = parseInt(yearMatch[1],10);
       return `{ ?thing wdt:P18 ?image . { ?thing wdt:P31 wd:Q3231690 . OPTIONAL { ?thing wdt:P571 ?inception . } FILTER(BOUND(?inception) && year(?inception) = ${y}) } BIND(?thing AS ?entity) }`;
     }
+    if (/(actors|singers|bands)\\s*20\\d\\d/.test(t)){ // e.g., actors 2025
+      const role = /actors/.test(t) ? 'wd:Q33999' : /singers/.test(t) ? 'wd:Q177220' : 'wd:Q2088357';
+      const y = yearMatch ? parseInt(yearMatch[1],10) : null;
+      // filter by birth year ≤ year or active year around that year (heuristic)
+      return `{ ?person wdt:P31 wd:Q5 ; wdt:P106 ${role} ; wdt:P18 ?image .
+                OPTIONAL { ?person wdt:P569 ?birth . }
+                OPTIONAL { ?person wdt:P2031 ?start . }
+                FILTER( (BOUND(?birth) && year(?birth) <= ${y||2024}) || (BOUND(?start) && year(?start) <= ${(y||2024)+1}) || !BOUND(?birth) )
+                BIND(?person AS ?entity) }`;
+    }
+    if (/scientists?/.test(t)){
+      return H([ 'wdt:P106 wd:Q901 ;' ]); // occupation scientist
+    }
+    if (/historical figures in science/.test(t)){
+      return `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q901 ; wdt:P18 ?image .
+                OPTIONAL { ?person wdt:P569 ?birth . }
+                FILTER(BOUND(?birth) && year(?birth) < 1950)
+                BIND(?person AS ?entity) }`;
+    }
+    if (/historical leaders/.test(t)){
+      return `{ ?person wdt:P31 wd:Q5 ; wdt:P39 ?office ; wdt:P18 ?image .
+                ?office wdt:P279*/wdt:P31? wd:Q4164871 .  # head of state/head of government-ish
+                OPTIONAL { ?person wdt:P569 ?birth . }
+                FILTER(!BOUND(?birth) || year(?birth) < 1950)
+                BIND(?person AS ?entity) }`;
+    }
+    if (/historical pioneers/.test(t)){
+      return `{ ?person wdt:P31 wd:Q5 ; wdt:P106 ?occ ; wdt:P18 ?image .
+                ?person wdt:P800|wdt:P61|wdt:P85|wdt:P2596 ?notable .  # notable work/disc/wins
+                OPTIONAL { ?person wdt:P569 ?birth . }
+                FILTER(BOUND(?birth) && year(?birth) < 1950)
+                BIND(?person AS ?entity) }`;
+    }
     if (/\bobjects?\b/.test(t)) return CATEGORY_BLOCKS['objects']();
     if (/household/.test(t)) return CATEGORY_BLOCKS['household objects']();
     if (/clutter/.test(t)) return CATEGORY_BLOCKS['clutter home objects']();
@@ -319,7 +395,7 @@
   }
 
   const countryMap = { 'norwegian':'Q20','norway':'Q20','swedish':'Q34','sweden':'Q34','danish':'Q35','denmark':'Q35','finnish':'Q33','finland':'Q33','icelandic':'Q189','iceland':'Q189','british':'Q145','uk':'Q145','american':'Q30','us':'Q30' };
-  const roleMap = { 'actor':'Q33999','actors':'Q33999','actress':'Q33999','musician':'Q639669','singer':'Q177220','politician':'Q82955','model':'Q4610556','director':'Q2526255','footballer':'Q937857' };
+  const roleMap = { 'actor':'Q33999','actors':'Q33999','actress':'Q33999','musician':'Q639669','singer':'Q177220','politician':'Q82955','model':'Q4610556','director':'Q2526255','footballer':'Q937857','band':'Q2088357','bands':'Q2088357' };
 
   function buildSPARQLFromTerms(terms){
     const blocks = [];
@@ -328,8 +404,11 @@
       const fixed = CATEGORY_BLOCKS[label] || CATEGORY_BLOCKS[label.replace(/celbs/i,'celebs')];
       if (fixed) { blocks.push(fixed()); return; }
       const dyn = parseDynamicTerm(label); if(dyn){ blocks.push(dyn); return; }
+
       const key = label.toLowerCase();
-      let countryQ=null, roleQ=null; Object.keys(countryMap).forEach(k=>{ if(key.includes(k)) countryQ = countryQ || countryMap[k]; }); Object.keys(roleMap).forEach(k=>{ if(key.includes(k)) roleQ = roleQ || roleMap[k]; });
+      let countryQ=null, roleQ=null; Object.keys(countryMap).forEach(k=>{ if(key.includes(k)) countryQ = countryQ || countryMap[k]; });
+      Object.keys(roleMap).forEach(k=>{ if(key.includes(k)) roleQ = roleQ || roleMap[k]; });
+
       if(countryQ || roleQ){
         const parts = ['?person wdt:P31 wd:Q5 ;'];
         if(countryQ) parts.push(` wdt:P27 wd:${countryQ} ;`);
@@ -337,17 +416,23 @@
         parts.push(' wdt:P18 ?image . BIND(?person AS ?entity)');
         blocks.push(`{ ${parts.join('')} }`);
       } else {
+        // fallback to generic objects if nothing matched
         blocks.push(CATEGORY_BLOCKS['objects']());
       }
     });
     const union = blocks.join('\nUNION\n');
-    return `SELECT ?entity ?entityLabel ?image WHERE {\n${union}\nSERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }\n}\nLIMIT 300`;
+    return `SELECT ?entity ?entityLabel ?image WHERE {
+${union}
+SERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }
+}
+LIMIT 300`;
   }
 
   async function sparqlQuery(query){
     const endpoint = 'https://query.wikidata.org/sparql';
     const body = new URLSearchParams(); body.set('query', query);
-    const res = await fetch(endpoint, { method:'POST', mode:'cors', headers:{ 'Accept':'application/sparql-results+json', 'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8' }, body });
+    const res = await fetch(endpoint, { method:'POST', mode:'cors',
+      headers:{ 'Accept':'application/sparql-results+json', 'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8' }, body });
     if(!res.ok){ const text = await res.text().catch(()=>'' ); throw new Error('WDQS HTTP '+res.status+' '+text.slice(0,120)); }
     return await res.json();
   }
@@ -377,7 +462,17 @@
   }
 
   async function fetchAttribution(fileTitle){
-    try{ const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles=' + encodeURIComponent(fileTitle); const res = await fetch(url); const data = await res.json(); const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null; const info = page?.imageinfo?.[0]; const meta = info?.extmetadata || {}; const artist = meta.Artist?.value || ''; const credit = meta.Credit?.value || ''; const license = meta.LicenseShortName?.value || ''; const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle)); return { artist, credit, license, filePageUrl }; }catch(e){ return { artist:'', credit:'', license:'', filePageUrl: 'https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle) }; }
+    try{
+      const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles=' + encodeURIComponent(fileTitle);
+      const res = await fetch(url); const data = await res.json();
+      const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null;
+      const info = page?.imageinfo?.[0]; const meta = info?.extmetadata || {};
+      const artist = meta.Artist?.value || ''; const credit = meta.Credit?.value || ''; const license = meta.LicenseShortName?.value || '';
+      const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle));
+      return { artist, credit, license, filePageUrl };
+    }catch(e){
+      return { artist:'', credit:'', license:'', filePageUrl: 'https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle) };
+    }
   }
 
   // Seamless image swapping (no black/loading)
@@ -385,8 +480,11 @@
   function swapIn(img){
     const previous = currentImg;
     currentImg = img; currentImg.classList.add('photo','show');
-    wrap.appendChild(currentImg);
-    if(previous){ previous.addEventListener('transitionend', ()=>{ try{ wrap.removeChild(previous); }catch{} }, {once:true}); previous.classList.remove('show'); }
+    imgwrap.appendChild(currentImg);
+    if(previous){
+      previous.addEventListener('transitionend', ()=>{ try{ imgwrap.removeChild(previous); }catch{} }, {once:true});
+      previous.classList.remove('show');
+    }
   }
 
   async function showIndex(i){
@@ -398,15 +496,18 @@
       img.className='photo show';
       swapIn(img);
       entityName.textContent = it.name;
+
       const att = await fetchAttribution(it.fileTitle).catch(()=>({filePageUrl:'#'}));
       currentLink = it.itemUrl && it.itemUrl!=='#' ? it.itemUrl : att.filePageUrl || '#';
-      // Name reveal delay handling
+
+      // Name reveal: show photo first (hidden), reveal if allowed after delay
       nameBar.classList.add('collapsed');
       setTimeout(()=>{
         const shouldShow = (!globalHideNames) || perSlideReveal;
         if(shouldShow) nameBar.classList.remove('collapsed');
         perSlideReveal = false;
       }, nameDelay);
+
       downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,'');
     };
     img.onerror = ()=>{ console.warn('Image failed, skipping'); next(); };
@@ -415,40 +516,87 @@
   function next(){ showIndex((currIndex + 1) % items.length); }
   function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
 
-  function startAutoplay(){ if(timer) clearInterval(timer); timer = setInterval(next, (window.__slideSeconds||2)*1000); autoplay = true; cornerPlayStop.textContent='⏹ Stop'; cornerPlayStop.classList.add('playing'); }
-  function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.textContent='▶️ Play'; cornerPlayStop.classList.remove('playing'); }
+  function startAutoplay(){
+    if(timer) clearInterval(timer);
+    timer = setInterval(next, (window.__slideSeconds||2)*1000);
+    autoplay = true;
+    cornerPlayStop.classList.add('playing'); leftRail.classList.add('playing');
+  }
+  function stopAutoplay(){
+    if(timer) clearInterval(timer);
+    timer=null; autoplay=false;
+    cornerPlayStop.classList.remove('playing'); leftRail.classList.remove('playing');
+  }
 
   function setMode(isFixed){ fixedOrder = !!isFixed; modeRandom?.setAttribute('aria-pressed', String(!fixedOrder)); modeFixed?.setAttribute('aria-pressed', String(fixedOrder)); }
 
-  async function applySelection(){ items = []; currIndex = -1; countBadge.textContent = 'Fetching…'; const chosen = collectSelectedTerms(); if(!chosen.length){ toast.textContent='Select one or more categories first.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); return; } try{ let data = await fetchWDFromTerms(chosen); if(!fixedOrder) data = data.sort(()=>Math.random()-0.5); items = data; countBadge.textContent = `${items.length} photos`; if(!items.length){ return; } setPage(1); showIndex(0); startAutoplay(); debug.textContent = 'Loaded '+items.length+' photos.'; }catch(e){ console.error(e); countBadge.textContent='0'; debug.textContent = e.message; toast.textContent = 'Fetch error: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 2000); } }
-  function collectSelectedTerms(){ const out=[]; grids.forEach(g=> out.push(...Array.from(g.grid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term||b.textContent.trim()))); return out.filter(Boolean); }
+  async function applySelection(){
+    items = []; currIndex = -1; countBadge.textContent = 'Fetching…';
+    const chosen = collectSelectedTerms();
+    if(!chosen.length){
+      toast.textContent='Select one or more categories first.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); return;
+    }
+    try{
+      let data = await fetchWDFromTerms(chosen);
+      if(!fixedOrder) data = data.sort(()=>Math.random()-0.5);
+      items = data;
+      countBadge.textContent = `${items.length} photos`;
+      if(!items.length) return;
+      setPage(1); showIndex(0); startAutoplay();
+      debug.textContent = 'Loaded '+items.length+' photos.';
+    }catch(e){
+      console.error(e); countBadge.textContent='0'; debug.textContent = e.message;
+      toast.textContent = 'Fetch error: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 2000);
+    }
+  }
+  function collectSelectedTerms(){
+    const out=[];
+    grids.forEach(g=> out.push(...Array.from(g.grid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term||b.textContent.trim())));
+    return out.filter(Boolean);
+  }
 
   function isTypingTarget(t){ if(!t) return false; const tag=(t.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t.isContentEditable; }
 
   // Hotkeys
-  document.addEventListener('keydown', (e)=>{ if(isTypingTarget(e.target)) return; const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now; const key=(e.key||'').toLowerCase(); if (e.code==='Space'||key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; } if (key==='s'){ e.preventDefault(); globalHideNames = !globalHideNames; nameBar.classList.toggle('collapsed', globalHideNames); hideAllNamesBtn.textContent = globalHideNames ? 'Show names' : 'Hide names'; return; } if (key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; } if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; } const leftSet=new Set(['`','1','2','3','4','5','q','w','e','r','t','a','d','f','g','z','x','c','v','b']); const rightSet=new Set(['6','7','8','9','0','-','=', 'y','u','i','o','p','[',']','\\', 'h','j','k','l',';','\'', 'n','m',',','.','/']); if(e.location===3){ stopAutoplay(); next(); return; } if(rightSet.has(key)){ stopAutoplay(); next(); return; } if(leftSet.has(key)){ stopAutoplay(); prev(); return; } });
+  document.addEventListener('keydown', (e)=>{
+    if(isTypingTarget(e.target)) return;
+    const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now;
+    const key=(e.key||'').toLowerCase();
+    if (e.code==='Space'||key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; }
+    if (key==='s'){ e.preventDefault(); globalHideNames = !globalHideNames; nameBar.classList.toggle('collapsed', globalHideNames); hideAllNamesBtn.textContent = globalHideNames ? 'Show names' : 'Hide names'; return; }
+    if (key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; }
+    if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; }
+  });
 
-  // Swipe between pages (also works on desktop touch devices)
+  // Swipe page nav
   let touchStart=null;
   document.addEventListener('touchstart', (e)=>{ const t=e.changedTouches[0]; touchStart={x:t.clientX,y:t.clientY}; }, {passive:true});
   document.addEventListener('touchend', (e)=>{ if(!touchStart) return; const t=e.changedTouches[0]; const dx=t.clientX-touchStart.x; const dy=t.clientY-touchStart.y; if(Math.abs(dx)>40 && Math.abs(dy)<60){ const activeIdx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; if(dx<0 && activeIdx<5) setPage(activeIdx+1); if(dx>0 && activeIdx>1) setPage(activeIdx-1); } touchStart=null; }, {passive:true});
 
-  // Click zones
+  // Click zones on photo
   document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
   document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
 
-  // Play/Stop
+  // Play/Stop button
   cornerPlayStop.addEventListener('click', ()=>{ if(autoplay) stopAutoplay(); else startAutoplay(); });
 
   // Name controls
   hideAllNamesBtn.addEventListener('click', ()=>{ globalHideNames = !globalHideNames; hideAllNamesBtn.textContent = globalHideNames ? 'Show names' : 'Hide names'; nameBar.classList.toggle('collapsed', globalHideNames); });
-  showThisNameBtn.addEventListener('click', ()=>{ if(globalHideNames){ perSlideReveal = true; nameBar.classList.remove('collapsed'); } });
+  showThisNameBtn.addEventListener('click', ()=>{ if(globalHideNames){ perSlideReveal = true; nameBar.classList.remove('collapsed'); setTimeout(()=>{ nameBar.classList.add('collapsed'); perSlideReveal=false; }, nameDelay); } });
   openLinkBtn.addEventListener('click', ()=>{ if(currentLink && currentLink!=='#'){ window.open(currentLink, '_blank', 'noopener'); } });
 
   // Drawer controls (fine-only)
   speedFab.addEventListener('click', ()=>{ speedDrawer.classList.toggle('open'); });
   function clampStep(val){ let v = Math.max(0, Math.min(10, Number(val)||0)); v = Math.round(v/0.2)*0.2; return Number(v.toFixed(1)); }
-  function updateSpeedDisplay(){ const sec = Math.floor(window.__slideSeconds||0); const frac = (window.__slideSeconds||0) - sec; const ms = Math.round(frac*1000/200)*200; document.getElementById('fineSec').textContent = String(sec); document.getElementById('fineMs').textContent = String(ms); document.getElementById('fineTotal').textContent = (window.__slideSeconds||0).toFixed(1)+'s'; }
+  function updateSpeedDisplay(){
+    const s = window.__slideSeconds||0;
+    const sec = Math.floor(s);
+    const frac = s - sec;
+    const part = Math.round(frac/0.2)*0.2;
+    document.getElementById('fineSec').textContent = String(sec);
+    document.getElementById('fineMs').textContent = part.toFixed(1);
+    document.getElementById('fineTotal').textContent = (sec+part).toFixed(1)+'s';
+  }
   function setSlide(seconds){ window.__slideSeconds = clampStep(seconds); updateSpeedDisplay(); if(autoplay) startAutoplay(); }
   updateSpeedDisplay();
   document.querySelectorAll('#fineRow .stepper .quickBtn').forEach(btn=>{
@@ -456,7 +604,14 @@
   });
 
   // Name delay fine controls
-  function updateNameDisplay(){ const s = nameDelay/1000; const sec = Math.floor(s); const frac = s-sec; const part = Math.round(frac/0.2)*0.2; document.getElementById('nameSec').textContent = String(sec); document.getElementById('nameMs').textContent = part.toFixed(1); document.getElementById('nameTotal').textContent = (sec+part).toFixed(1)+'s'; }
+  function updateNameDisplay(){
+    const s = nameDelay/1000;
+    const sec = Math.floor(s);
+    const part = Math.round((s-sec)/0.2)*0.2;
+    document.getElementById('nameSec').textContent = String(sec);
+    document.getElementById('nameMs').textContent = part.toFixed(1);
+    document.getElementById('nameTotal').textContent = (sec+part).toFixed(1)+'s';
+  }
   function setNameDelay(seconds){ const s = clampStep(seconds); nameDelay = Math.round(s*1000); updateNameDisplay(); }
   updateNameDisplay();
   document.querySelectorAll('#nameFineRow .stepper .quickBtn').forEach(btn=>{
@@ -464,37 +619,90 @@
   });
 
   // Builder helpers
-  function makeTermButton(label, gridEl){ const btn=document.createElement('button'); btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0'; btn.addEventListener('click', ()=>{ const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c); if(c>=3){ btn.dataset.clicks='0'; btn.classList.add('editing'); const prev=btn.dataset.term; const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%'; input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); } }); input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); }); btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return; } btn.classList.toggle('selected'); setTimeout(()=>{ btn.dataset.clicks='0'; }, 350); }); gridEl.appendChild(btn); return btn; }
+  function makeTermButton(label, gridEl){
+    const btn=document.createElement('button'); btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0';
+    btn.addEventListener('click', ()=>{
+      const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c);
+      if(c>=3){
+        btn.dataset.clicks='0'; btn.classList.add('editing');
+        const prev=btn.dataset.term; const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%';
+        input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); } });
+        input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); });
+        btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return;
+      }
+      btn.classList.toggle('selected'); setTimeout(()=>{ btn.dataset.clicks='0'; }, 350);
+    });
+    gridEl.appendChild(btn); return btn;
+  }
 
   function gatherAllTiles(){ const tiles=[]; grids.forEach((g,gi)=>{ g.grid.querySelectorAll('.termBtn').forEach((b,idx)=>{ tiles.push({ label:b.dataset.term||b.textContent.trim(), selected:b.classList.contains('selected'), page:gi+2, index:idx }); }); }); return tiles; }
   function renderFromTiles(tiles){ grids.forEach(g=> g.grid.innerHTML=''); tiles.forEach((t,i)=>{ const gi = Math.min(Math.floor(i/16), grids.length-1); const b = makeTermButton(t.label, grids[gi].grid); if(t.selected) b.classList.add('selected'); }); ensureMinTiles(); attachAddHandlers(); }
   function ensureMinTiles(){ const total = grids.reduce((n,g)=> n + g.grid.querySelectorAll('.termBtn').length, 0); for(let i=total;i<48;i++){ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton('Custom term', grids[gi].grid); } }
 
-  function exportJSON(){ const tiles = gatherAllTiles().map(t=>({label:t.label, selected:t.selected})); return JSON.stringify({ version:3, tiles }, null, 2); }
+  function exportJSON(){ const tiles = gatherAllTiles().map(t=>({label:t.label, selected:t.selected})); return JSON.stringify({ version:4, tiles }, null, 2); }
   function importJSON(str){ const obj = JSON.parse(str); if(!obj || !Array.isArray(obj.tiles)) throw new Error('Invalid JSON'); renderFromTiles(obj.tiles.map(x=>({label:x.label, selected:!!x.selected}))); }
 
-  function attachAddHandlers(){ grids.forEach(g=>{ if(g.add){ g.add.onclick = ()=>{ const t=(g.input.value||'').trim(); if(!t) return; const count=g.grid.querySelectorAll('.termBtn').length; if(count>=16){ const nextIndex=grids.indexOf(g)+1; const ng=grids[Math.min(nextIndex, grids.length-1)]; makeTermButton(t, ng.grid); } else { makeTermButton(t, g.grid); } g.input.value=''; }; } });
-    // Clear/Apply on every page
-    clearSelBtn?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
-    clearSelBtn2?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
-    clearSelBtn3?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
-    applyBtn?.addEventListener('click', ()=>{ applySelection(); });
-    applyBtn2?.addEventListener('click', ()=>{ applySelection(); });
-    applyBtn3?.addEventListener('click', ()=>{ applySelection(); });
+  function attachAddHandlers(){
+    grids.forEach(g=>{
+      if(g.add){
+        g.add.onclick = ()=>{
+          const t=(g.input.value||'').trim(); if(!t) return;
+          const count=g.grid.querySelectorAll('.termBtn').length;
+          if(count>=16){
+            const nextIndex=grids.indexOf(g)+1; const ng=grids[Math.min(nextIndex, grids.length-1)];
+            makeTermButton(t, ng.grid);
+          } else { makeTermButton(t, g.grid); }
+          g.input.value='';
+        };
+      }
+    });
+    // Clear/Apply buttons
+    function clearAllSel(){ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); }
+    clearSelBtn?.addEventListener('click', clearAllSel);
+    clearSelBtn2?.addEventListener('click', clearAllSel);
+    clearSelBtn3?.addEventListener('click', clearAllSel);
+    applyBtn?.addEventListener('click', applySelection);
+    applyBtn2?.addEventListener('click', applySelection);
+    applyBtn3?.addEventListener('click', applySelection);
   }
 
-  // JSON
+  // JSON buttons
   exportBtn.addEventListener('click', ()=>{ jsonBox.value = exportJSON(); toast.textContent='Exported current tiles to JSON'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); });
   importBtn.addEventListener('click', ()=>{ try{ importJSON(jsonBox.value); toast.textContent='Imported categories'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); }catch(e){ toast.textContent='Import failed: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1800); } });
   resetBtn.addEventListener('click', ()=>{ populateDefaults(); jsonBox.value=''; toast.textContent='Reset to defaults'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1000); });
 
   // Defaults
-  function populateDefaults(){ grids.forEach(g=> g.grid.innerHTML=''); const presets = [ 'Beatles', 'Norwegian celebs', 'US celebs', 'Norwegian politicians', 'Norwegian ceo', 'US ceo', 'World ceo', 'Music producers', "Models of the 50's", "Models of the 80's", 'famous movie characters', 'famous cartoon characters', 'objects', 'household objects', 'clutter home objects', 'cars', 'cars of 2010', 'cars of 2025', 'Norwegian actors','Norwegian musicians','Norwegian comedians','Norwegian writers','UK celebrity','British actors','German footballers','50s movie stars','Danish actors','Swedish politicians','Icelandic singers','Finnish musicians','Italian actors','Spanish footballers','French actors','Canadian singers' ]; presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton(p, grids[gi].grid); }); ensureMinTiles(); attachAddHandlers(); }
+  function populateDefaults(){
+    grids.forEach(g=> g.grid.innerHTML='');
+    const presets = [
+      'Beatles', 'Norwegian celebs', 'US celebs', 'American celebrities',
+      'Norwegian politicians', 'Norwegian ceo', 'US ceo', 'American CEOs', 'World ceo',
+      'Music producers', "Models of the 50's", "Models of the 80's",
+      'famous movie characters', 'famous cartoon characters',
+      'actors 2025', 'singers 2024', 'bands 2024',
+      'scientists','historical figures in science','historical leaders','historical pioneers',
+      'objects','household objects','clutter home objects','cars','cars of 2010','cars of 2025',
+      'Norwegian actors','Norwegian musicians','Norwegian comedians','Norwegian writers',
+      'UK celebrity','British actors','German footballers','50s movie stars',
+      'Danish actors','Swedish politicians','Icelandic singers','Finnish musicians',
+      'Italian actors','Spanish footballers','French actors','Canadian singers'
+    ];
+    presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton(p, grids[gi].grid); });
+    ensureMinTiles(); attachAddHandlers();
+  }
 
   // Init
   populateDefaults();
-  // Start on Categories page so you definitely see buttons first
-  setPage(2);
+  setPage(1);
+
+  // Preselect Norwegian celebs and auto-apply immediately
+  setTimeout(()=>{
+    const match = [...document.querySelectorAll('#termGrid1 .termBtn')]
+      .find(x=> (x.dataset.term||x.textContent).trim().toLowerCase()==='norwegian celebs');
+    if(match && !match.classList.contains('selected')) match.classList.add('selected');
+    applySelection();
+  }, 0);
+
 })();
 </script>
 </body>
