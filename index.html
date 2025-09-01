@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Celeb Slideshow — Random Photo Fetcher</title>
-  <meta name="description" content="Slideshow that auto-fetches photos from Wikidata/Commons. Seamless swaps, mobile swipe, category pages, JSON import/export, centered name overlay with peek, and fine-only timing controls (sec ±1, ms ±0.2)." />
+  <meta name="description" content="Slideshow that auto‑fetches photos from Wikidata/Commons. Seamless image swaps (no black/loading), mobile swipe, category pages, JSON import/export, Play at 45% left, fine-only timing controls (sec ±1, ms ±0.2) for slide speed & name reveal." />
   <style>
     :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; }
     *{box-sizing:border-box}
@@ -35,26 +35,12 @@
     .hotzone.left{left:0; width:33.333%}
     .hotzone.right{right:0; width:66.667%}
 
-    /* Centered name overlay */
-    .nameOverlay{
-      position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-      text-align:center; padding:8px 14px; border-radius:12px;
-      background:rgba(2,6,23,.55); border:1px solid rgba(255,255,255,.18);
-      font-weight:800; font-size:22px; text-shadow:0 2px 8px rgba(0,0,0,.7); opacity:1
-    }
-    .nameOverlay.hidden{opacity:0; pointer-events:none}
-
-    /* Bottom credit (does not affect overlay) */
-    .creditBar{
-      position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
-      font-size:12px; color:var(--muted); background:rgba(2,6,23,.65);
-      border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:6px 10px
-    }
-    .creditBar a{color:var(--ok); text-decoration:none}
-
-    /* Bottom name buttons */
-    .nameArea{position:absolute; left:50%; transform:translateX(-50%); bottom:24px; display:flex; gap:8px; align-items:center}
-    .nameToggle{padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:#1f2a44; color:#e5eef7; font-weight:700; cursor:pointer}
+    .nameArea{position:absolute; left:50%; transform:translateX(-50%); bottom:24px; display:grid; gap:8px; place-items:center; width:min(92%, 820px)}
+    .nameToggle{order:0; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:#1f2a44; color:#e5eef7; font-weight:700; cursor:pointer}
+    .nameBar{order:1; width:100%; background:rgba(2,6,23,.88); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 12px; text-align:center}
+    .nameBar.collapsed{display:none}
+    .title{font-size:20px; font-weight:800}
+    .caption{font-size:13px; color:var(--muted)}
 
     .builder{padding:12px}
     .hintRow{display:flex; gap:10px; align-items:center; margin-bottom:8px}
@@ -73,7 +59,6 @@
 
     .toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none}
 
-    /* Floating blue button + drawer */
     .fab{position:fixed; right:16px; bottom:16px; width:56px; height:56px; border-radius:50%; background:#3b82f6; color:white; display:grid; place-items:center; font-size:22px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,.35); z-index:60}
     .drawer{position:fixed; left:0; right:0; bottom:-260px; background:rgba(15,23,42,.96); border-top:1px solid rgba(255,255,255,.08); padding:12px; display:grid; gap:12px; transition:bottom .25s ease; z-index:55}
     .drawer.open{bottom:0}
@@ -112,25 +97,21 @@
     <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
       <div class="stage" id="stage">
         <div class="imgwrap" id="imgwrap"></div>
-        <!-- seamless overlay + credit -->
-        <div class="nameOverlay hidden" id="nameOverlay">&nbsp;</div>
-        <div class="creditBar" id="creditBar" style="display:none"></div>
-
-        <!-- click zones -->
         <div class="hotzone left" id="zoneLeft" title="Previous"></div>
         <div class="hotzone right" id="zoneRight" title="Next"></div>
-
-        <!-- name controls -->
         <div class="nameArea">
-          <button class="nameToggle" id="nameToggle">Hide names (next slides)</button>
-          <button class="nameToggle" id="namePeek">Reveal this photo</button>
+          <button class="nameToggle" id="nameToggle">Hide name</button>
+          <div class="nameBar" id="nameBar">
+            <div class="title" id="entityName">&nbsp;</div>
+            <div class="caption" id="caption"><span class="hint">Tap to show/hide name & credit</span></div>
+          </div>
         </div>
       </div>
     </section>
 
     <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
       <div class="builder">
-        <div class="hintRow"><div class="hintToggle" id="hintToggle2"></div><div class="hint" id="hint2">Tap to select (blue). Triple-click to edit. Apply clears cache and loads only selected. <a href="#" id="linkP3">Go to Page 3</a> • <a href="#" id="linkP4">Page 4</a> • <a href="#" id="linkP5">Settings</a> • <a href="#" id="linkBack1">Back to Page 1</a></div></div>
+        <div class="hintRow"><div class="hintToggle" id="hintToggle2"></div><div class="hint" id="hint2">Tap to select (blue). Triple‑click to edit. Apply clears cache and loads only selected. <a href="#" id="linkP3">Go to Page 3</a> • <a href="#" id="linkP4">Page 4</a> • <a href="#" id="linkP5">Settings</a> • <a href="#" id="linkBack1">Back to Page 1</a></div></div>
         <div class="grid" id="termGrid1"></div>
         <div class="builderActions">
           <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
@@ -186,7 +167,7 @@
   </main>
 
   <footer>
-    <div>PC keys: Right-side → <strong>Next</strong> (except <kbd>P</kbd> = play/pause). Left-side → <strong>Previous</strong> (except <kbd>S</kbd> = name). <kbd>Space</kbd>/<kbd>P</kbd> = play/pause. Arrows work. While typing/renaming, hotkeys are disabled. Mobile: swipe left/right to switch pages.</div>
+    <div>PC keys: Right‑side → <strong>Next</strong> (except <kbd>P</kbd> = play/pause). Left‑side → <strong>Previous</strong> (except <kbd>S</kbd> = name). <kbd>Space</kbd>/<kbd>P</kbd> = play/pause. Arrows work. While typing/renaming, hotkeys are disabled. Mobile: swipe left/right to switch pages.</div>
     <div class="sp"></div>
     <a href="#" id="downloadLink" title="Download current image">Download</a>
   </footer>
@@ -197,7 +178,7 @@
   <!-- Timing drawer (fine-only) -->
   <button class="fab" id="speedFab" title="Speed / Name delay">●</button>
   <div class="drawer" id="speedDrawer">
-    <div><strong>Slide speed</strong> <span class="hint">(seconds ±1s, extra ±0.2s)</span></div>
+    <div><strong>Slide speed</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
     <div class="quickRow" id="fineRow">
       <div class="stepper" data-type="sec">
         <button class="quickBtn" data-delta="-1">−1s</button>
@@ -206,25 +187,25 @@
       </div>
       <div class="stepper" data-type="ms">
         <button class="quickBtn" data-delta="-0.2">−0.2s</button>
-        <span class="stepVal" id="fineMs">0</span><span class="hint"> extra</span>
+        <span class="stepVal" id="fineMs">0</span><span class="hint"> ms</span>
         <button class="quickBtn" data-delta="0.2">＋0.2s</button>
       </div>
       <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="fineTotal">2.0s</strong></div>
     </div>
 
-    <div><strong>Name reveal delay</strong> <span class="hint">(seconds ±1s, extra ±0.2s)</span></div>
+    <div><strong>Name reveal delay</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
     <div class="quickRow" id="nameFineRow">
       <div class="stepper" data-type="nsec">
         <button class="quickBtn" data-delta="-1">−1s</button>
-        <span class="stepVal" id="nameSec">1</span><span class="hint"> s</span>
+        <span class="stepVal" id="nameSec">0</span><span class="hint"> s</span>
         <button class="quickBtn" data-delta="1">＋1s</button>
       </div>
       <div class="stepper" data-type="nms">
         <button class="quickBtn" data-delta="-0.2">−0.2s</button>
-        <span class="stepVal" id="nameMs">0</span><span class="hint"> extra</span>
+        <span class="stepVal" id="nameMs">0</span><span class="hint"> ms</span>
         <button class="quickBtn" data-delta="0.2">＋0.2s</button>
       </div>
-      <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="nameTotal">1.0s</strong></div>
+      <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="nameTotal">0.5s</strong></div>
     </div>
   </div>
 
@@ -235,10 +216,10 @@
 (function(){
   // Elements
   const wrap = document.getElementById('imgwrap');
-  const nameOverlay = document.getElementById('nameOverlay');
-  const creditBar = document.getElementById('creditBar');
+  const nameBar = document.getElementById('nameBar');
   const nameToggle = document.getElementById('nameToggle');
-  const namePeek = document.getElementById('namePeek');
+  const entityName = document.getElementById('entityName');
+  const caption = document.getElementById('caption');
   const countBadge = document.getElementById('countBadge');
   const downloadLink = document.getElementById('downloadLink');
   const toast = document.getElementById('toast');
@@ -283,56 +264,220 @@
   const resetBtn = document.getElementById('resetBtn');
 
   // State
-  let items = []; let timer=null; let autoplay=true; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null;
-  let showNames = true;
-  let nameDelay = 1000;          // default 1s
-  window.__slideSeconds = 2.0;   // default 2s
+  let items = []; let timer=null; let autoplay=true; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null; let nameDelay=500;
+  window.__slideSeconds = 2; // default 2s
 
-  // SPARQL helpers (unified ?entity so humans/objects work)
+  // SPARQL block helpers — unified ?entity so non-people (objects/cars) work
   function H(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . BIND(?person AS ?entity) }`; }
   function F(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} BIND(?person AS ?entity) }`; }
   function T(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . BIND(?thing AS ?entity) }`; }
 
   const CATEGORY_BLOCKS = {
-    // Your requested set + earlier useful presets
     'Beatles': () => H([ 'wdt:P463 wd:Q1299 ;' ]),
     'Norwegian celebs': () => H([ 'wdt:P27 wd:Q20 ;' ]),
     'US celebs': () => H([ 'wdt:P27 wd:Q30 ;' ]),
-
     'Norwegian politicians': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P106 wd:Q82955 ;' ]),
-    'World politicians': () => H([ 'wdt:P106 wd:Q82955 ;' ]),
-    'World leaders': () => `{ ?person wdt:P31 wd:Q5 ; wdt:P18 ?image . { ?person wdt:P39 wd:Q14211 } UNION { ?person wdt:P39 wd:Q48352 } BIND(?person AS ?entity) }`,
-
-    'Norwegian comedians': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P106 wd:Q245068 ;' ]),
-    'Norwegian actors': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P106 wd:Q33999 ;' ]),
-    'Norwegian musicians': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P106 wd:Q639669 ;' ]),
-    'Norwegian rappers': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P106 wd:Q2066131 ;' ]),
-    'UK rappers': () => H([ 'wdt:P27 wd:Q145 ;', 'wdt:P106 wd:Q2066131 ;' ]),
-    'US rappers': () => H([ 'wdt:P27 wd:Q30 ;', 'wdt:P106 wd:Q2066131 ;' ]),
-
-    'World celebs 2025': () => `{ ?person wdt:P31 wd:Q5 ; wdt:P18 ?image . ?person wdt:P106 ?occ . VALUES ?occ { wd:Q33999 wd:Q177220 wd:Q4610556 wd:Q937857 wd:Q2066131 } BIND(?person AS ?entity) }`,
-
-    "Celebs 70's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start } OPTIONAL { ?person wdt:P2032 ?end } FILTER( (BOUND(?start) && year(?start) <= 1979) || (BOUND(?end) && year(?end) >= 1970) || (!BOUND(?start) && !BOUND(?end)) ) BIND(?person AS ?entity) }`,
-    "Celebs 50's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start } OPTIONAL { ?person wdt:P2032 ?end } FILTER( (BOUND(?start) && year(?start) <= 1959) || (BOUND(?end) && year(?end) >= 1950) || (!BOUND(?start) && !BOUND(?end)) ) BIND(?person AS ?entity) }`,
-
-    'Historical figures': () => `{ ?person wdt:P31 wd:Q5 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P569 ?dob } OPTIONAL { ?person wdt:P570 ?dod } FILTER( (BOUND(?dod) && year(?dod) < 1950) || (BOUND(?dob) && year(?dob) < 1900) ) BIND(?person AS ?entity) }`,
-    'Medieval figures': () => `{ ?person wdt:P31 wd:Q5 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P570 ?dod } OPTIONAL { ?person wdt:P569 ?dob } FILTER( (BOUND(?dod) && year(?dod) <= 1500) || (BOUND(?dob) && year(?dob) <= 1500) ) BIND(?person AS ?entity) }`,
-    'Biblical figures': () => `{ ?person wdt:P18 ?image . { ?person wdt:P31/wdt:P279* wd:Q20643955 } UNION { ?person wdt:P106 wd:Q42962 } BIND(?person AS ?entity) }`,
-    'Buddhist figures': () => `{ ?person wdt:P18 ?image . { ?person wdt:P140 wd:Q748 } UNION { ?person wdt:P106 wd:Q18127 } BIND(?person AS ?entity) }`,
-    'Indian mythology': () => `{ ?person wdt:P18 ?image . { ?person wdt:P31/wdt:P279* wd:Q16334295 } BIND(?person AS ?entity) }`,
-
-    'Poets': () => H([ 'wdt:P106 wd:Q49757 ;' ]),
-    'Modern poets': () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q49757 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P569 ?dob } FILTER(BOUND(?dob) && year(?dob) >= 1950) BIND(?person AS ?entity) }`,
-    'Influencers': () => H([ 'wdt:P106 wd:Q2143416 ;' ]),
-    'Famous TikTokkers': () => H([ 'wdt:P106 wd:Q83798568 ;' ]),
-
+    'Norwegian ceo': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P39 wd:Q484876 ;' ]),
+    'US ceo': () => H([ 'wdt:P27 wd:Q30 ;', 'wdt:P39 wd:Q484876 ;' ]),
+    'World ceo': () => H([ 'wdt:P39 wd:Q484876 ;' ]),
     'Music producers': () => H([ 'wdt:P106 wd:Q183945 ;' ]),
     "Models of the 50's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1959) || (BOUND(?end) && year(?end) >= 1950) || (!BOUND(?start) && !BOUND(?end)) ) BIND(?person AS ?entity) }`,
     "Models of the 80's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1989) || (BOUND(?end) && year(?end) >= 1980) || (!BOUND(?start) && !BOUND(?end)) ) BIND(?person AS ?entity) }`,
-
     'famous movie characters': () => F([ ' ?person wdt:P31 wd:Q15773347 . ' ]),
     'famous cartoon characters': () => F([ ' { ?person wdt:P31 wd:Q15711870 . } UNION { ?person wdt:P31 wd:Q373494 . } ' ]),
-
-    // Objects/cars
     'objects': () => T([ ' ?thing wdt:P31/wdt:P279* wd:Q488383 . ' ]),
-    'household objects': () => T([ ' { ?thing wdt:P31/wdt:P279* wd:Q478017 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q1491801 . } UNION { ?thing wdt:P31/wdt:P279]()
+    'household objects': () => T([ ' { ?thing wdt:P31/wdt:P279* wd:Q478017 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q1491801 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q319541 . } ' ]),
+    'clutter home objects': () => T([ ' { ?thing wdt:P31/wdt:P279* wd:Q1491801 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q478017 . } ' ]),
+    'cars': () => T([ ' { ?thing wdt:P31 wd:Q1420 . } UNION { ?thing wdt:P31 wd:Q3231690 . } ' ]),
+  };
+
+  function parseDynamicTerm(term){
+    const t = term.toLowerCase().trim();
+    const yearMatch = t.match(/(\d{4})/);
+    if (/\bcars?\b/.test(t) && yearMatch){
+      const y = parseInt(yearMatch[1],10);
+      return `{ ?thing wdt:P18 ?image . { ?thing wdt:P31 wd:Q3231690 . OPTIONAL { ?thing wdt:P571 ?inception . } FILTER(BOUND(?inception) && year(?inception) = ${y}) } BIND(?thing AS ?entity) }`;
+    }
+    if (/\bobjects?\b/.test(t)) return CATEGORY_BLOCKS['objects']();
+    if (/household/.test(t)) return CATEGORY_BLOCKS['household objects']();
+    if (/clutter/.test(t)) return CATEGORY_BLOCKS['clutter home objects']();
+    if (/\bcars?\b/.test(t)) return CATEGORY_BLOCKS['cars']();
+    return null;
+  }
+
+  const countryMap = { 'norwegian':'Q20','norway':'Q20','swedish':'Q34','sweden':'Q34','danish':'Q35','denmark':'Q35','finnish':'Q33','finland':'Q33','icelandic':'Q189','iceland':'Q189','british':'Q145','uk':'Q145','american':'Q30','us':'Q30' };
+  const roleMap = { 'actor':'Q33999','actors':'Q33999','actress':'Q33999','musician':'Q639669','singer':'Q177220','politician':'Q82955','model':'Q4610556','director':'Q2526255','footballer':'Q937857' };
+
+  function buildSPARQLFromTerms(terms){
+    const blocks = [];
+    terms.forEach(raw => {
+      const label = (raw||'').trim();
+      const fixed = CATEGORY_BLOCKS[label] || CATEGORY_BLOCKS[label.replace(/celbs/i,'celebs')];
+      if (fixed) { blocks.push(fixed()); return; }
+      const dyn = parseDynamicTerm(label); if(dyn){ blocks.push(dyn); return; }
+      const key = label.toLowerCase();
+      let countryQ=null, roleQ=null; Object.keys(countryMap).forEach(k=>{ if(key.includes(k)) countryQ = countryQ || countryMap[k]; }); Object.keys(roleMap).forEach(k=>{ if(key.includes(k)) roleQ = roleQ || roleMap[k]; });
+      if(countryQ || roleQ){
+        const parts = ['?person wdt:P31 wd:Q5 ;'];
+        if(countryQ) parts.push(` wdt:P27 wd:${countryQ} ;`);
+        if(roleQ) parts.push(` wdt:P106 wd:${roleQ} ;`);
+        parts.push(' wdt:P18 ?image . BIND(?person AS ?entity)'); blocks.push(`{ ${parts.join('')} }`);
+      } else {
+        blocks.push(CATEGORY_BLOCKS['objects']());
+      }
+    });
+    const union = blocks.join('\nUNION\n');
+    return `SELECT ?entity ?entityLabel ?image WHERE {\n${union}\nSERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }\n}\nLIMIT 300`;
+  }
+
+  async function sparqlQuery(query){
+    const endpoint = 'https://query.wikidata.org/sparql';
+    const body = new URLSearchParams(); body.set('query', query);
+    const res = await fetch(endpoint, { method:'POST', mode:'cors', headers:{ 'Accept':'application/sparql-results+json', 'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8' }, body });
+    if(!res.ok){ const text = await res.text().catch(()=>'' ); throw new Error('WDQS HTTP '+res.status+' '+text.slice(0,120)); }
+    return await res.json();
+  }
+
+  async function fetchWDFromTerms(terms){
+    const sparql = buildSPARQLFromTerms(terms);
+    const data = await sparqlQuery(sparql);
+    const rows = data.results.bindings || [];
+    if(!rows.length) throw new Error('No results for: '+terms.join(', '));
+    return rows.map(r=>{
+      const name = r.entityLabel?.value || 'Untitled';
+      let imageField = r.image?.value || '';
+      let imageUrl = '';
+      if (imageField.includes('Special:FilePath/')){
+        imageUrl = imageField + (imageField.includes('?')? '&' : '?') + 'width=1600';
+      } else {
+        let fn = imageField;
+        try{ if(fn.startsWith('http')){ const u = new URL(fn); fn = decodeURIComponent(u.pathname.split('/').pop()); } }catch{}
+        fn = fn.replace(/^.*File:/,''); if(!fn) return null;
+        imageUrl = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(fn) + '?width=1600';
+        imageField = 'File:'+fn;
+      }
+      const fileTitle = imageField.startsWith('File:') ? imageField : ('File:'+imageField.replace(/^.*File:/,''));
+      const itemUrl = r.entity?.value || '#';
+      return { name, imageUrl, fileTitle, itemUrl };
+    }).filter(Boolean);
+  }
+
+  async function fetchAttribution(fileTitle){
+    try{ const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles=' + encodeURIComponent(fileTitle); const res = await fetch(url); const data = await res.json(); const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null; const info = page?.imageinfo?.[0]; const meta = info?.extmetadata || {}; const artist = meta.Artist?.value || ''; const credit = meta.Credit?.value || ''; const license = meta.LicenseShortName?.value || ''; const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle)); return { artist, credit, license, filePageUrl }; }catch(e){ return { artist:'', credit:'', license:'', filePageUrl: 'https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle) }; }
+  }
+
+  // Seamless image swapping (no black/loading)
+  let currentImg=null;
+  function swapIn(img){
+    const previous = currentImg;
+    currentImg = img; currentImg.classList.add('photo','show');
+    wrap.appendChild(currentImg);
+    if(previous){ previous.addEventListener('transitionend', ()=>{ try{ wrap.removeChild(previous); }catch{} }, {once:true}); previous.classList.remove('show'); }
+  }
+
+  async function showIndex(i){
+    if(!items.length) return;
+    currIndex = (i + items.length) % items.length;
+    const it = items[currIndex];
+    const img = new Image(); img.decoding='async'; img.referrerPolicy='no-referrer';
+    img.onload = async ()=>{
+      img.className='photo show';
+      swapIn(img);
+      nameBar.classList.add('collapsed');
+      entityName.innerHTML = `${it.itemUrl && it.itemUrl!=='#' ? `<a href="${it.itemUrl}" target="_blank" rel="noopener" style="color:var(--fg); text-decoration:none">${it.name}</a>` : it.name}`;
+      try{ const { artist, credit, license, filePageUrl } = await fetchAttribution(it.fileTitle); const creditText = artist || credit || ''; caption.innerHTML = `${creditText ? creditText + ' • ' : ''}<a href="${filePageUrl}" target="_blank" rel="noopener">${it.fileTitle}</a>${license? ' • License: '+license : ''}`; }catch{ caption.textContent=''; }
+      downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,'');
+      setTimeout(()=>{ nameBar.classList.remove('collapsed'); updateNameToggle(); }, nameDelay);
+    };
+    img.onerror = ()=>{ console.warn('Image failed, skipping'); next(); };
+    img.src = it.imageUrl;
+  }
+  function next(){ showIndex((currIndex + 1) % items.length); }
+  function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
+
+  function startAutoplay(){ if(timer) clearInterval(timer); timer = setInterval(next, (window.__slideSeconds||2)*1000); autoplay = true; cornerPlayStop.textContent='⏹ Stop'; }
+  function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.textContent='▶️ Play'; }
+
+  function setMode(isFixed){ fixedOrder = !!isFixed; modeRandom?.setAttribute('aria-pressed', String(!fixedOrder)); modeFixed?.setAttribute('aria-pressed', String(fixedOrder)); }
+
+  async function applySelection(){ items = []; currIndex = -1; countBadge.textContent = 'Fetching…'; const chosen = collectSelectedTerms(); if(!chosen.length){ toast.textContent='Select one or more categories first.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); return; } try{ let data = await fetchWDFromTerms(chosen); if(!fixedOrder) data = data.sort(()=>Math.random()-0.5); items = data; countBadge.textContent = `${items.length} photos`; if(!items.length){ return; } showIndex(0); startAutoplay(); debug.textContent = 'Loaded '+items.length+' photos.'; }catch(e){ console.error(e); countBadge.textContent='0'; debug.textContent = e.message; } }
+  function collectSelectedTerms(){ const out=[]; grids.forEach(g=> out.push(...Array.from(g.grid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term||b.textContent.trim()))); return out.filter(Boolean); }
+
+  function isTypingTarget(t){ if(!t) return false; const tag=(t.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t.isContentEditable; }
+  function updateNameToggle(){ nameToggle.textContent = nameBar.classList.contains('collapsed') ? 'Show name' : 'Hide name'; }
+  function toggleName(){ nameBar.classList.toggle('collapsed'); updateNameToggle(); }
+  document.addEventListener('keydown', (e)=>{ if(isTypingTarget(e.target)) return; const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now; const key=(e.key||'').toLowerCase(); if (e.code==='Space'||key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; } if (key==='s'){ e.preventDefault(); toggleName(); return; } if (key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; } if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; } const leftSet=new Set(['`','1','2','3','4','5','q','w','e','r','t','a','d','f','g','z','x','c','v','b']); const rightSet=new Set(['6','7','8','9','0','-','=', 'y','u','i','o','p','[',']','\\', 'h','j','k','l',';','\'', 'n','m',',','.','/']); if(e.location===3){ stopAutoplay(); next(); return; } if(rightSet.has(key)){ stopAutoplay(); next(); return; } if(leftSet.has(key)){ stopAutoplay(); prev(); return; } });
+
+  // Swipe between pages
+  function onTouchStart(e){ const t=e.changedTouches[0]; mobileSwipeStart = {x:t.clientX, y:t.clientY}; }
+  function onTouchEnd(e){ if(!mobileSwipeStart) return; const t=e.changedTouches[0]; const dx=t.clientX-mobileSwipeStart.x; const dy=t.clientY-mobileSwipeStart.y; const adx=Math.abs(dx), ady=Math.abs(dy); if(adx>40 && ady<60){ const activeIdx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; if(dx<0 && activeIdx<5){ setPage(activeIdx+1); } else if(dx>0 && activeIdx>1){ setPage(activeIdx-1); } } }
+  document.addEventListener('touchstart', onTouchStart, {passive:true});
+  document.addEventListener('touchend', onTouchEnd, {passive:true});
+
+  // Click zones
+  document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
+  document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
+
+  // Play/Stop
+  cornerPlayStop.addEventListener('click', ()=>{ if(autoplay) stopAutoplay(); else startAutoplay(); });
+
+  // Drawer controls (fine-only)
+  speedFab.addEventListener('click', ()=>{ speedDrawer.classList.toggle('open'); });
+  function clampStep(val){ let v = Math.max(0, Math.min(10, Number(val)||0)); v = Math.round(v/0.2)*0.2; return Number(v.toFixed(1)); }
+  function updateSpeedDisplay(){ document.getElementById('fineSec').textContent = String(Math.floor(window.__slideSeconds||0)); const ms = Math.round(((window.__slideSeconds||0)-Math.floor(window.__slideSeconds||0))*1000/200)*200; document.getElementById('fineMs').textContent = String(ms); document.getElementById('fineTotal').textContent = (window.__slideSeconds||0).toFixed(1)+'s'; }
+  function setSlide(seconds){ window.__slideSeconds = clampStep(seconds); updateSpeedDisplay(); if(autoplay) startAutoplay(); }
+  updateSpeedDisplay();
+  document.querySelectorAll('#fineRow .stepper').forEach(box=>{
+    box.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const delta = Number(btn.dataset.delta);
+        setSlide((window.__slideSeconds||0) + delta);
+      });
+    });
+  });
+
+  // Name delay fine controls
+  function updateNameDisplay(){ const sec = Math.floor(nameDelay/1000); const ms = Math.round((nameDelay%1000)/200)*200; document.getElementById('nameSec').textContent = String(sec); document.getElementById('nameMs').textContent = String(ms); document.getElementById('nameTotal').textContent = (nameDelay/1000).toFixed(1)+'s'; }
+  function setNameDelay(seconds){ const s = clampStep(seconds); nameDelay = Math.round(s*1000); updateNameDisplay(); }
+  updateNameDisplay();
+  document.querySelectorAll('#nameFineRow .stepper').forEach(box=>{
+    box.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ const delta = Number(btn.dataset.delta); setNameDelay((nameDelay/1000) + delta); });
+    });
+  });
+
+  // Builder helpers
+  function makeTermButton(label, gridEl){ const btn=document.createElement('button'); btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0'; btn.addEventListener('click', ()=>{ const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c); if(c>=3){ btn.dataset.clicks='0'; btn.classList.add('editing'); const prev=btn.dataset.term; const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%'; input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); } }); input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); }); btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return; } btn.classList.toggle('selected'); setTimeout(()=>{ btn.dataset.clicks='0'; }, 400); }); gridEl.appendChild(btn); return btn; }
+
+  function gatherAllTiles(){ const tiles=[]; grids.forEach((g,gi)=>{ g.grid.querySelectorAll('.termBtn').forEach((b,idx)=>{ tiles.push({ label:b.dataset.term||b.textContent.trim(), selected:b.classList.contains('selected'), page:gi+2, index:idx }); }); }); return tiles; }
+  function renderFromTiles(tiles){ grids.forEach(g=> g.grid.innerHTML=''); tiles.forEach((t,i)=>{ const gi = Math.min(Math.floor(i/16), grids.length-1); const b = makeTermButton(t.label, grids[gi].grid); if(t.selected) b.classList.add('selected'); }); ensureMinTiles(); attachAddHandlers(); }
+  function ensureMinTiles(){ const total = grids.reduce((n,g)=> n + g.grid.querySelectorAll('.termBtn').length, 0); for(let i=total;i<48;i++){ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton('Custom term', grids[gi].grid); } }
+
+  function exportJSON(){ const tiles = gatherAllTiles().map(t=>({label:t.label, selected:t.selected})); return JSON.stringify({ version:3, tiles }, null, 2); }
+  function importJSON(str){ const obj = JSON.parse(str); if(!obj || !Array.isArray(obj.tiles)) throw new Error('Invalid JSON'); renderFromTiles(obj.tiles.map(x=>({label:x.label, selected:!!x.selected}))); }
+
+  function attachAddHandlers(){ grids.forEach(g=>{ if(g.add){ g.add.onclick = ()=>{ const t=(g.input.value||'').trim(); if(!t) return; const count=g.grid.querySelectorAll('.termBtn').length; if(count>=16){ const nextIndex=grids.indexOf(g)+1; const ng=grids[Math.min(nextIndex, grids.length-1)]; makeTermButton(t, ng.grid); } else { makeTermButton(t, g.grid); } g.input.value=''; }; } });
+    // Clear/Apply on every page
+    clearSelBtn?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
+    clearSelBtn2?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
+    clearSelBtn3?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
+    applyBtn?.addEventListener('click', ()=>{ setPage(1); applySelection(); });
+    applyBtn2?.addEventListener('click', ()=>{ setPage(1); applySelection(); });
+    applyBtn3?.addEventListener('click', ()=>{ setPage(1); applySelection(); });
+  }
+
+  // JSON
+  exportBtn.addEventListener('click', ()=>{ jsonBox.value = exportJSON(); toast.textContent='Exported current tiles to JSON'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); });
+  importBtn.addEventListener('click', ()=>{ try{ importJSON(jsonBox.value); toast.textContent='Imported categories'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); }catch(e){ toast.textContent='Import failed: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1800); } });
+  resetBtn.addEventListener('click', ()=>{ populateDefaults(); jsonBox.value=''; toast.textContent='Reset to defaults'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1000); });
+
+  // Defaults
+  function populateDefaults(){ grids.forEach(g=> g.grid.innerHTML=''); const presets = [ 'Beatles', 'Norwegian celebs', 'US celebs', 'Norwegian politicians', 'Norwegian ceo', 'US ceo', 'World ceo', 'Music producers', "Models of the 50's", "Models of the 80's", 'famous movie characters', 'famous cartoon characters', 'objects', 'household objects', 'clutter home objects', 'cars', 'cars of 2010', 'cars of 2025', 'Norwegian actors','Norwegian musicians','Norwegian comedians','Norwegian writers','UK celebrity','British actors','German footballers','50s movie stars','Danish actors','Swedish politicians','Icelandic singers','Finnish musicians','Italian actors','Spanish footballers','French actors','Canadian singers' ]; presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton(p, grids[gi].grid); }); ensureMinTiles(); attachAddHandlers(); }
+
+  populateDefaults();
+  grids[0].grid.querySelectorAll('.termBtn').forEach(b=>{ if(['Norwegian celebs','Norwegian actors','Norwegian musicians'].includes(b.dataset.term)) b.classList.add('selected'); });
+  applySelection();
+})();
+</script>
+</body>
+</html>
