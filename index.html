@@ -367,4 +367,542 @@ footer a{color:var(--ok); text-decoration:none}
     'US celebs': () => blockHumanWithImage([ 'wdt:P27 wd:Q30 ;' ]),
     'Norwegian politicians': () => blockHumanWithImage([ 'wdt:P27 wd:Q20 ;','wdt:P106 wd:Q82955 ;' ]),
     'Norwegian ceo': () => blockHumanWithImage([ 'wdt:P27 wd:Q20 ;','wdt:P39 wd:Q484876 ;' ]),
-    'US ceo': () => blockHumanW
+    'US ceo': () => blockHumanWithImage([ 'wdt:P27 wd:Q30 ;','wdt:P39 wd:Q484876 ;' ]),
+    'World ceo': () => blockHumanWithImage([ 'wdt:P39 wd:Q484876 ;' ]),
+    'Music producers': () => blockHumanWithImage([ 'wdt:P106 wd:Q183945 ;' ]),
+    "Models of the 50's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1959) || (BOUND(?end) && year(?end) >= 1950) || (!BOUND(?start) && !BOUND(?end)) ) }`,
+    "Models of the 80's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image . OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . } FILTER( (BOUND(?start) && year(?start) <= 1989) || (BOUND(?end) && year(?end) >= 1980) || (!BOUND(?start) && !BOUND(?end)) ) }`,
+    'famous movie characters': () => blockFictionalWithImage([ ' ?person wdt:P31 wd:Q15773347 . ' ]),
+    'famous cartoon characters': () => blockFictionalWithImage([ ' { ?person wdt:P31 wd:Q15711870 . } UNION { ?person wdt:P31 wd:Q373494 . } ' ]),
+    // object presets
+    'objects': () => blockThingWithImage([ ' ?thing wdt:P31/wdt:P279* wd:Q488383 . ' ]),
+    'household objects': () => blockThingWithImage([ ' { ?thing wdt:P31/wdt:P279* wd:Q478017 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q1491801 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q319541 . } ' ]),
+    'clutter home objects': () => blockThingWithImage([ ' { ?thing wdt:P31/wdt:P279* wd:Q1491801 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q478017 . } ' ]),
+    'cars': () => blockThingWithImage([ ' { ?thing wdt:P31 wd:Q1420 . } UNION { ?thing wdt:P31 wd:Q3231690 . } ' ]),
+  };
+
+  function parseDynamicTerm(term){
+    const t = term.toLowerCase().trim();
+    const yearMatch = t.match(/(\d{4})/);
+    if (/\bcars?\b/.test(t) && yearMatch){
+      const y = parseInt(yearMatch[1],10);
+      return `{ ?thing wdt:P18 ?image . { ?thing wdt:P31 wd:Q3231690 . OPTIONAL { ?thing wdt:P571 ?inception . } FILTER(BOUND(?inception) && year(?inception) = ${y}) } }`;
+    }
+    if (/\bobjects?\b/.test(t)) return CATEGORY_BLOCKS['objects']();
+    if (/household/.test(t)) return CATEGORY_BLOCKS['household objects']();
+    if (/clutter/.test(t)) return CATEGORY_BLOCKS['clutter home objects']();
+    if (/\bcars?\b/.test(t)) return CATEGORY_BLOCKS['cars']();
+    return null;
+  }
+
+  const countryMap = { 'norwegian':'Q20','norway':'Q20','swedish':'Q34','sweden':'Q34','danish':'Q35','denmark':'Q35','finnish':'Q33','finland':'Q33','icelandic':'Q189','iceland':'Q189','british':'Q145','uk':'Q145','american':'Q30','us':'Q30' };
+  const roleMap = { 'actor':'Q33999','actors':'Q33999','actress':'Q33999','musician':'Q639669','singer':'Q177220','politician':'Q82955','model':'Q4610556','director':'Q2526255','footballer':'Q937857' };
+
+  function buildSPARQLFromTerms(terms){
+    const blocks = [];
+    terms.forEach(raw => {
+      const label = (raw||'').trim();
+      const fixed = CATEGORY_BLOCKS[label] || CATEGORY_BLOCKS[label.replace(/celbs/i,'celebs')];
+      if (fixed) { blocks.push(fixed()); return; }
+      const dyn = parseDynamicTerm(label);
+      if(dyn){ blocks.push(dyn); return; }
+      const key = label.toLowerCase();
+      let countryQ=null, roleQ=null;
+      Object.keys(countryMap).forEach(k=>{ if(key.includes(k)) countryQ = countryQ || countryMap[k]; });
+      Object.keys(roleMap).forEach(k=>{ if(key.includes(k)) roleQ = roleQ || roleMap[k]; });
+      if(countryQ || roleQ){
+        const parts = ['?person wdt:P31 wd:Q5 ;'];
+        if(countryQ) parts.push(` wdt:P27 wd:${countryQ} ;`);
+        if(roleQ) parts.push(` wdt:P106 wd:${roleQ} ;`);
+        parts.push(' wdt:P18 ?image .');
+        blocks.push(`{ ${parts.join('')} }`);
+      } else {
+        blocks.push(CATEGORY_BLOCKS['objects']());
+      }
+    });
+    const union = blocks.join('\nUNION\n');
+    return `SELECT ?person ?personLabel ?image WHERE {
+${union}
+SERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }
+}
+LIMIT 1200;`;
+  }
+
+  async function sparqlQuery(query){
+    const endpoint = 'https://query.wikidata.org/sparql';
+    const body = new URLSearchParams(); body.set('query', query);
+    const res = await fetch(endpoint, { method:'POST', mode:'cors', headers:{ 'Accept':'application/sparql-results+json', 'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8' }, body });
+    if(!res.ok) throw new Error('WDQS HTTP '+res.status);
+    return await res.json();
+  }
+
+  async function fetchWDFromTerms(terms){
+    const sparql = buildSPARQLFromTerms(terms);
+    const data = await sparqlQuery(sparql);
+    const rows = data.results.bindings || [];
+    return rows.map(r=>{
+      const name = r.personLabel?.value || 'Untitled';
+      const imageField = r.image?.value || '';
+      let imageUrl = imageField;
+      if (!imageUrl.includes('Special:FilePath')) {
+        let fn = imageUrl;
+        if (fn.startsWith('http')) {
+          try {
+            const u = new URL(fn);
+            const last = decodeURIComponent(u.pathname.split('/').pop());
+            fn = last.startsWith('File:') ? last : 'File:'+last;
+          } catch {}
+        }
+        if (!fn.startsWith('File:')) fn = 'File:' + fn.replace(/^.*File:/,'');
+        imageUrl = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(fn.replace(/^File:/,'')) + '?width=1600';
+      } else {
+        if (!/\?width=/.test(imageUrl)) imageUrl += (imageUrl.includes('?')?'&':'?')+'width=1600';
+      }
+      let fileTitle = 'File:';
+      if (imageUrl.includes('Special:FilePath/')) fileTitle += decodeURIComponent(imageUrl.split('Special:FilePath/')[1].split('?')[0]);
+      const itemUrl = r.person?.value || '#';
+      return { name, imageUrl, fileTitle, itemUrl };
+    });
+  }
+
+  async function fetchAttribution(fileTitle){
+    try{
+      const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles=' + encodeURIComponent(fileTitle);
+      const res = await fetch(url);
+      const data = await res.json();
+      const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null;
+      const info = page?.imageinfo?.[0];
+      const meta = info?.extmetadata || {};
+      const artist = meta.Artist?.value || '';
+      const credit = meta.Credit?.value || '';
+      const license = meta.LicenseShortName?.value || '';
+      const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle));
+      return { artist, credit, license, filePageUrl };
+    }catch(e){
+      return { artist:'', credit:'', license:'', filePageUrl: 'https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle) };
+    }
+  }
+
+  function clearImage(){ wrap.innerHTML = '<div class="hint">Loading…</div>'; }
+
+  async function showIndex(i){
+    if(!items.length) return;
+    currIndex = (i + items.length) % items.length;
+    const it = items[currIndex];
+    showOverride = false; // reset per-photo override
+    clearImage();
+
+    const img = new Image();
+    img.className='photo';
+    img.decoding='async';
+
+    img.onload = async ()=>{
+      wrap.innerHTML=''; wrap.appendChild(img);
+
+      // Set centered title only (no link around the name)
+      personName.textContent = it.name || 'Untitled';
+
+      // Fetch attribution to wire "Link" and "Download" targets
+      const { filePageUrl } = await fetchAttribution(it.fileTitle);
+      linkBtn.href = (it.itemUrl && it.itemUrl !== '#') ? it.itemUrl : filePageUrl;
+      downloadBtn.href = it.imageUrl;
+      downloadBtn.download = it.fileTitle.replace(/^File:/,'');
+
+      downloadLink.href = it.imageUrl;
+      downloadLink.download = it.fileTitle.replace(/^File:/,'');
+
+      // Initial name visibility: hidden, then reveal after delay if allowed
+      nameBar.classList.add('collapsed');
+      const delayMs = msFromFine(window.__nameFineSec, window.__nameFineMs);
+      setTimeout(()=>{
+        if (!hideAllNames || showOverride){
+          nameBar.classList.remove('collapsed');
+        }
+      }, delayMs);
+      updateNameToggleLabel();
+    };
+
+    img.onerror = ()=>{
+      toast.textContent='Skipped an image that failed to load';
+      toast.style.display='block';
+      setTimeout(()=> toast.style.display='none', 1200);
+      next();
+    };
+
+    img.src = it.imageUrl;
+  }
+
+  function next(){ showIndex((currIndex + 1) % items.length); }
+  function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
+
+  function startAutoplay(){
+    if(timer) clearInterval(timer);
+    timer = setInterval(next, (window.__slideSeconds||2)*1000);
+    autoplay = true; cornerPlayStop.textContent='⏹ Stop';
+  }
+  function stopAutoplay(){
+    if(timer) clearInterval(timer);
+    timer=null; autoplay=false; cornerPlayStop.textContent='▶️ Play';
+  }
+
+  function setMode(isFixed){
+    fixedOrder = !!isFixed;
+    modeRandom?.setAttribute('aria-pressed', String(!fixedOrder));
+    modeFixed?.setAttribute('aria-pressed', String(fixedOrder));
+  }
+
+  async function applySelection(){
+    items = []; currIndex = -1; wrap.innerHTML = '<div class="hint">Applying selection…</div>'; countBadge.textContent = 'Fetching…';
+    const chosen = collectSelectedTerms();
+    if(!chosen.length){
+      toast.textContent='Select one or more categories first.';
+      toast.style.display='block';
+      setTimeout(()=> toast.style.display='none', 1200);
+      return;
+    }
+    try{
+      let data = await fetchWDFromTerms(chosen);
+      if(!fixedOrder) data = data.sort(()=>Math.random()-0.5);
+      items = data;
+      countBadge.textContent = `${items.length} photos`;
+      if(!items.length){
+        wrap.innerHTML = '<div class="hint">No results. Try different categories.</div>';
+        return;
+      }
+      showIndex(0);
+      startAutoplay();
+      debug.textContent = 'Loaded '+items.length+' photos.';
+    }catch(e){
+      console.error(e);
+      wrap.innerHTML='<div class="hint">Error fetching photos.</div>';
+      countBadge.textContent='0';
+      debug.textContent = e.message;
+    }
+  }
+
+  function collectSelectedTerms(){
+    const out=[];
+    grids.forEach(g=> out.push(...Array.from(g.grid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term||b.textContent.trim())));
+    return out.filter(Boolean);
+  }
+
+  function isTypingTarget(t){
+    if(!t) return false;
+    const tag=(t.tagName||'').toLowerCase();
+    return tag==='input'||tag==='textarea'||t.isContentEditable;
+  }
+
+  function updateNameToggleLabel(){
+    nameToggle.textContent = hideAllNames ? 'Show names' : 'Hide names';
+  }
+
+  function toggleGlobalNameHide(){
+    hideAllNames = !hideAllNames;
+    updateNameToggleLabel();
+    // Immediately apply to current photo
+    if (hideAllNames){
+      nameBar.classList.add('collapsed');
+    } else {
+      // reveal after configured delay
+      nameBar.classList.add('collapsed');
+      const delayMs = msFromFine(window.__nameFineSec, window.__nameFineMs);
+      setTimeout(()=> nameBar.classList.remove('collapsed'), delayMs);
+    }
+  }
+
+  // Keyboard controls
+  document.addEventListener('keydown', (e)=>{
+    if(isTypingTarget(e.target)) return;
+    const now=Date.now();
+    if(now-lastKeyTime<120) return;
+    lastKeyTime=now;
+    const key=(e.key||'').toLowerCase();
+
+    if (e.code==='Space'||key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; }
+    if (key==='s'){ e.preventDefault(); toggleGlobalNameHide(); return; }
+    if (key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; }
+    if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; }
+
+    const leftSet=new Set(['','1','2','3','4','5','q','w','e','r','t','a','d','f','g','z','x','c','v','b']);
+    const rightSet=new Set(['6','7','8','9','0','-','=', 'y','u','i','o','p','[',']','\\', 'h','j','k','l',';','\'', 'n','m',',','.','/']);
+    if(e.location===3){ stopAutoplay(); next(); return; }
+    if(rightSet.has(key)){ stopAutoplay(); next(); return; }
+    if(leftSet.has(key)){ stopAutoplay(); prev(); return; }
+  });
+
+  // Swipe (left/right)
+  function onTouchStart(e){ const t=e.changedTouches[0]; mobileSwipeStart = {x:t.clientX, y:t.clientY}; }
+  function onTouchEnd(e){
+    if(!mobileSwipeStart) return;
+    const t=e.changedTouches[0];
+    const dx=t.clientX-mobileSwipeStart.x; const dy=t.clientY-mobileSwipeStart.y;
+    const adx=Math.abs(dx), ady=Math.abs(dy);
+    if(adx>40 && ady<60){
+      if(tabs[0].page.classList.contains('active')){
+        if(dx<0 && window.innerWidth<768){ setPage(2); return; }
+        if(dx<0){ stopAutoplay(); next(); return; }
+        if(dx>0){ stopAutoplay(); prev(); return; }
+      } else if(tabs[1].page.classList.contains('active')){
+        if(dx<0 && window.innerWidth<768){ setPage(3); return; }
+        if(dx>0 && window.innerWidth<768){ setPage(1); return; }
+      } else {
+        if(dx>0 && window.innerWidth<768){ setPage(1); return; }
+      }
+    }
+  }
+  document.addEventListener('touchstart', onTouchStart, {passive:true});
+  document.addEventListener('touchend', onTouchEnd, {passive:true});
+
+  // Click zones
+  document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
+  document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
+
+  // Play/Stop
+  cornerPlayStop.addEventListener('click', ()=>{ if(autoplay) stopAutoplay(); else startAutoplay(); });
+
+  // Drawer: speed quick buttons
+  speedFab.addEventListener('click', ()=>{ speedDrawer.classList.toggle('open'); });
+
+  document.getElementById('speedRow').querySelectorAll('.quickBtn').forEach(btn=> btn.addEventListener('click', ()=>{
+    window.__slideSeconds = Number(btn.dataset.s);
+    initFineFromSlide();
+    if(autoplay) startAutoplay();
+  }));
+
+  // ===== Slide fine controls =====
+  function updateFineDisplay(){
+    document.getElementById('fineSec').textContent = String(window.__fineSec);
+    document.getElementById('fineMs').textContent  = String(window.__fineMs);
+    document.getElementById('fineTotal').textContent = (window.__slideSeconds||0).toFixed(1)+'s';
+  }
+  function setSlideFromFine(){
+    const sec = Math.max(0, Math.min(10, Number(window.__fineSec)||0));
+    let ms = Math.max(0, Math.min(900, Number(window.__fineMs)||0));
+    window.__fineSec = sec; window.__fineMs = ms;
+    window.__slideSeconds = secondsFromFine(sec, ms);
+    updateFineDisplay();
+    if(autoplay) startAutoplay();
+  }
+  function initFineFromSlide(){
+    const s = Number(window.__slideSeconds||2);
+    const sec = Math.floor(s);
+    const ms = Math.round((s-sec)*1000/200)*200;
+    window.__fineSec = sec; window.__fineMs = ms;
+    updateFineDisplay();
+  }
+  initFineFromSlide();
+
+  document.querySelectorAll('#fineRow .stepper').forEach(box=>{
+    const type = box.getAttribute('data-type');
+    box.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const delta = Number(btn.dataset.delta);
+        if(type==='sec'){
+          window.__fineSec = Math.max(0, Math.min(10, (Number(window.__fineSec)||0) + delta));
+        } else {
+          let v = (Number(window.__fineMs)||0) + delta;
+          v = Math.max(0, Math.min(900, v));
+          window.__fineMs = v;
+        }
+        setSlideFromFine();
+      });
+    });
+  });
+
+  // ===== Name reveal fine controls =====
+  function updateNameFineDisplay(){
+    document.getElementById('nameFineSec').textContent = String(window.__nameFineSec);
+    document.getElementById('nameFineMs').textContent  = String(window.__nameFineMs);
+    document.getElementById('nameFineTotal').textContent =
+      (secondsFromFine(window.__nameFineSec, window.__nameFineMs)).toFixed(1)+'s';
+  }
+  function clampNameFine(){
+    window.__nameFineSec = Math.max(0, Math.min(10, Number(window.__nameFineSec)||0));
+    window.__nameFineMs  = Math.max(0, Math.min(900, Number(window.__nameFineMs)||0));
+  }
+  updateNameFineDisplay();
+
+  document.querySelectorAll('#nameFineRow .stepper').forEach(box=>{
+    const type = box.getAttribute('data-type');
+    box.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const delta = Number(btn.dataset.delta);
+        if(type==='nsec'){
+          window.__nameFineSec = (Number(window.__nameFineSec)||0) + delta;
+        } else {
+          window.__nameFineMs = (Number(window.__nameFineMs)||0) + delta;
+        }
+        clampNameFine(); updateNameFineDisplay();
+        // Apply to current photo if name is visible logic requires re-timing:
+        if (!hideAllNames){
+          nameBar.classList.add('collapsed');
+          setTimeout(()=>{
+            if (!hideAllNames || showOverride){
+              nameBar.classList.remove('collapsed');
+            }
+          }, msFromFine(window.__nameFineSec, window.__nameFineMs));
+        }
+      });
+    });
+  });
+
+  // Bottom controls
+  nameToggle.addEventListener('click', toggleGlobalNameHide);
+  showOnceBtn.addEventListener('click', ()=>{
+    // Reveal immediately for this photo only, without changing global hide flag
+    showOverride = true;
+    nameBar.classList.remove('collapsed');
+  });
+
+  // Builder UI
+  function makeTermButton(label, gridEl){
+    const btn=document.createElement('button');
+    btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0';
+    btn.addEventListener('click', ()=>{
+      const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c);
+      if(c>=3){
+        btn.dataset.clicks='0'; btn.classList.add('editing');
+        const prev=btn.dataset.term; const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%';
+        input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); }});
+        input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); });
+        btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return;
+      }
+      btn.classList.toggle('selected');
+      setTimeout(()=>{ btn.dataset.clicks='0'; }, 400);
+    });
+    gridEl.appendChild(btn);
+    return btn;
+  }
+
+  function gatherAllTiles(){
+    const tiles=[];
+    grids.forEach((g,gi)=>{
+      g.grid.querySelectorAll('.termBtn').forEach((b,idx)=>{
+        tiles.push({ label:b.dataset.term||b.textContent.trim(), selected:b.classList.contains('selected'), page:gi+2, index:idx });
+      });
+    });
+    return tiles;
+  }
+
+  function renderFromTiles(tiles){
+    grids.forEach(g=> g.grid.innerHTML='');
+    tiles.forEach((t,i)=>{
+      const gi = Math.min(Math.floor(i/16), grids.length-1);
+      const b = makeTermButton(t.label, grids[gi].grid);
+      if(t.selected) b.classList.add('selected');
+    });
+    ensureMinTiles(); attachAddHandlers();
+  }
+
+  function ensureMinTiles(){
+    const total = grids.reduce((n,g)=> n + g.grid.querySelectorAll('.termBtn').length, 0);
+    for(let i=total;i<48;i++){
+      const gi=Math.min(Math.floor(i/16), grids.length-1);
+      makeTermButton('Custom term', grids[gi].grid);
+    }
+  }
+
+  function exportJSON(){
+    const tiles = gatherAllTiles().map(t=>({label:t.label, selected:t.selected}));
+    return JSON.stringify({ version:2, tiles }, null, 2);
+  }
+
+  function importJSON(str){
+    const obj = JSON.parse(str);
+    if(!obj || !Array.isArray(obj.tiles)) throw new Error('Invalid JSON');
+    renderFromTiles(obj.tiles.map(x=>({label:x.label, selected:!!x.selected})));
+  }
+
+  function attachAddHandlers(){
+    grids.forEach(g=>{
+      if(g.add){
+        g.add.onclick = ()=>{
+          const t=(g.input.value||'').trim();
+          if(!t) return;
+          const count=g.grid.querySelectorAll('.termBtn').length;
+          if(count>=16){
+            const nextIndex=grids.indexOf(g)+1;
+            const ng=grids[Math.min(nextIndex, grids.length-1)];
+            makeTermButton(t, ng.grid);
+          } else {
+            makeTermButton(t, g.grid);
+          }
+          g.input.value='';
+        };
+      }
+      if(g.toggle && g.hint){
+        g.toggle.onclick = ()=> g.hint.style.display = (g.hint.style.display==='none'?'':'none');
+      }
+    });
+  }
+
+  function populateDefaults(){
+    grids.forEach(g=> g.grid.innerHTML='');
+    const presets = [
+      'Beatles','Norwegian celebs','US celebs','Norwegian politicians','Norwegian ceo','US ceo','World ceo','Music producers',
+      "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters',
+      'objects','household objects','clutter home objects','cars','cars of 2010','cars of 2025','Norwegian actors','Norwegian musicians',
+      'Norwegian comedians','Norwegian writers','UK celebrity','British actors','German footballers','50s movie stars','Danish actors',
+      'Swedish politicians','Icelandic singers','Finnish musicians','Italian actors','Spanish footballers','French actors','Canadian singers'
+    ];
+    presets.forEach((p,i)=>{
+      const gi=Math.min(Math.floor(i/16), grids.length-1);
+      makeTermButton(p, grids[gi].grid);
+    });
+    ensureMinTiles(); attachAddHandlers();
+  }
+
+  clearSelBtn.addEventListener('click', ()=>{
+    grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
+    items=[]; currIndex=-1; wrap.innerHTML = '<div class="hint">Selection cleared.</div>';
+    countBadge.textContent='0'; stopAutoplay();
+  });
+
+  applyBtn.addEventListener('click', ()=>{ setPage(1); applySelection(); });
+
+  modeRandom.addEventListener('click', ()=>{
+    setMode(false);
+    toast.textContent='Mode: Random photos'; toast.style.display='block';
+    setTimeout(()=> toast.style.display='none', 1000);
+    if(items.length){ items = items.sort(()=>Math.random()-0.5); currIndex = -1; showIndex(0); }
+  });
+
+  modeFixed.addEventListener('click', ()=>{
+    setMode(true);
+    toast.textContent='Mode: Same sequence'; toast.style.display='block';
+    setTimeout(()=> toast.style.display='none', 1000);
+  });
+
+  exportBtn.addEventListener('click', ()=>{
+    jsonBox.value = exportJSON();
+    toast.textContent='Exported current tiles to JSON'; toast.style.display='block';
+    setTimeout(()=> toast.style.display='none', 1200);
+  });
+
+  importBtn.addEventListener('click', ()=>{
+    try{
+      importJSON(jsonBox.value);
+      toast.textContent='Imported categories'; toast.style.display='block';
+      setTimeout(()=> toast.style.display='none', 1200);
+    }catch(e){
+      toast.textContent='Import failed: '+e.message; toast.style.display='block';
+      setTimeout(()=> toast.style.display='none', 1800);
+    }
+  });
+
+  resetBtn.addEventListener('click', ()=>{
+    populateDefaults(); jsonBox.value='';
+    toast.textContent='Reset to defaults'; toast.style.display='block';
+    setTimeout(()=> toast.style.display='none', 1000);
+  });
+
+  // Init
+  populateDefaults();
+  grids[0].grid.querySelectorAll('.termBtn').forEach(b=>{
+    if(['Norwegian celebs','Norwegian actors','Norwegian musicians'].includes(b.dataset.term)) b.classList.add('selected');
+  });
+  applySelection();
+})();
+</script>
+</body>
+</html>
