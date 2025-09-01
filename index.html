@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Celeb Slideshow — Random Photo Fetcher</title>
-  <meta name="description" content="Slideshow that auto‑fetches photos from Wikidata/Commons. Seamless image swaps (no black/loading), mobile swipe, category pages, JSON import/export, Play at 45% left, fine-only timing controls (sec ±1, ms ±0.2) for slide speed & name reveal." />
+  <meta name="description" content="Slideshow that auto‑fetches photos from Wikidata/Commons. Seamless image swaps, mobile swipe, multi-page categories with JSON import/export. Name centered with global Hide and per-photo Show, separate Link button. Fine-only timing controls (sec ±1, +/−0.2s)." />
   <style>
     :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; }
     *{box-sizing:border-box}
@@ -35,12 +35,11 @@
     .hotzone.left{left:0; width:33.333%}
     .hotzone.right{right:0; width:66.667%}
 
+    /* Name area */
     .nameArea{position:absolute; left:50%; transform:translateX(-50%); bottom:24px; display:grid; gap:8px; place-items:center; width:min(92%, 820px)}
-    .nameToggle{order:0; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:#1f2a44; color:#e5eef7; font-weight:700; cursor:pointer}
     .nameBar{order:1; width:100%; background:rgba(2,6,23,.88); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 12px; text-align:center}
     .nameBar.collapsed{display:none}
-    .title{font-size:20px; font-weight:800}
-    .caption{font-size:13px; color:var(--muted)}
+    .title{font-size:22px; font-weight:800}
 
     .builder{padding:12px}
     .hintRow{display:flex; gap:10px; align-items:center; margin-bottom:8px}
@@ -100,10 +99,13 @@
         <div class="hotzone left" id="zoneLeft" title="Previous"></div>
         <div class="hotzone right" id="zoneRight" title="Next"></div>
         <div class="nameArea">
-          <button class="nameToggle" id="nameToggle">Hide name</button>
           <div class="nameBar" id="nameBar">
             <div class="title" id="entityName">&nbsp;</div>
-            <div class="caption" id="caption"><span class="hint">Tap to show/hide name & credit</span></div>
+          </div>
+          <div class="quickRow" style="justify-content:center; gap:12px; margin-top:6px">
+            <button class="btn" id="hideAllNames">Hide names</button>
+            <button class="btn" id="showThisName">Show (this photo)</button>
+            <button class="btn" id="openLink">Link</button>
           </div>
         </div>
       </div>
@@ -217,9 +219,10 @@
   // Elements
   const wrap = document.getElementById('imgwrap');
   const nameBar = document.getElementById('nameBar');
-  const nameToggle = document.getElementById('nameToggle');
   const entityName = document.getElementById('entityName');
-  const caption = document.getElementById('caption');
+  const hideAllNamesBtn = document.getElementById('hideAllNames');
+  const showThisNameBtn = document.getElementById('showThisName');
+  const openLinkBtn = document.getElementById('openLink');
   const countBadge = document.getElementById('countBadge');
   const downloadLink = document.getElementById('downloadLink');
   const toast = document.getElementById('toast');
@@ -264,7 +267,7 @@
   const resetBtn = document.getElementById('resetBtn');
 
   // State
-  let items = []; let timer=null; let autoplay=true; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null; let nameDelay=500;
+  let items = []; let timer=null; let autoplay=true; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null; let nameDelay=500; let globalHideNames=false; let perSlideReveal=false; let currentLink='#';
   window.__slideSeconds = 2; // default 2s
 
   // SPARQL block helpers — unified ?entity so non-people (objects/cars) work
@@ -383,11 +386,12 @@
     img.onload = async ()=>{
       img.className='photo show';
       swapIn(img);
-      nameBar.classList.add('collapsed');
-      entityName.innerHTML = `${it.itemUrl && it.itemUrl!=='#' ? `<a href="${it.itemUrl}" target="_blank" rel="noopener" style="color:var(--fg); text-decoration:none">${it.name}</a>` : it.name}`;
-      try{ const { artist, credit, license, filePageUrl } = await fetchAttribution(it.fileTitle); const creditText = artist || credit || ''; caption.innerHTML = `${creditText ? creditText + ' • ' : ''}<a href="${filePageUrl}" target="_blank" rel="noopener">${it.fileTitle}</a>${license? ' • License: '+license : ''}`; }catch{ caption.textContent=''; }
+      entityName.textContent = it.name;
+      const att = await fetchAttribution(it.fileTitle).catch(()=>({filePageUrl:'#'}));
+      currentLink = it.itemUrl && it.itemUrl!=='#' ? it.itemUrl : att.filePageUrl || '#';
+      nameBar.classList.toggle('collapsed', globalHideNames && !perSlideReveal);
+      setTimeout(()=>{ perSlideReveal=false; nameBar.classList.toggle('collapsed', globalHideNames); }, nameDelay);
       downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,'');
-      setTimeout(()=>{ nameBar.classList.remove('collapsed'); updateNameToggle(); }, nameDelay);
     };
     img.onerror = ()=>{ console.warn('Image failed, skipping'); next(); };
     img.src = it.imageUrl;
@@ -404,9 +408,9 @@
   function collectSelectedTerms(){ const out=[]; grids.forEach(g=> out.push(...Array.from(g.grid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term||b.textContent.trim()))); return out.filter(Boolean); }
 
   function isTypingTarget(t){ if(!t) return false; const tag=(t.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t.isContentEditable; }
-  function updateNameToggle(){ nameToggle.textContent = nameBar.classList.contains('collapsed') ? 'Show name' : 'Hide name'; }
-  function toggleName(){ nameBar.classList.toggle('collapsed'); updateNameToggle(); }
-  document.addEventListener('keydown', (e)=>{ if(isTypingTarget(e.target)) return; const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now; const key=(e.key||'').toLowerCase(); if (e.code==='Space'||key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; } if (key==='s'){ e.preventDefault(); toggleName(); return; } if (key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; } if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; } const leftSet=new Set(['`','1','2','3','4','5','q','w','e','r','t','a','d','f','g','z','x','c','v','b']); const rightSet=new Set(['6','7','8','9','0','-','=', 'y','u','i','o','p','[',']','\\', 'h','j','k','l',';','\'', 'n','m',',','.','/']); if(e.location===3){ stopAutoplay(); next(); return; } if(rightSet.has(key)){ stopAutoplay(); next(); return; } if(leftSet.has(key)){ stopAutoplay(); prev(); return; } });
+
+  // Hotkeys
+  document.addEventListener('keydown', (e)=>{ if(isTypingTarget(e.target)) return; const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now; const key=(e.key||'').toLowerCase(); if (e.code==='Space'||key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; } if (key==='s'){ e.preventDefault(); globalHideNames = !globalHideNames; nameBar.classList.toggle('collapsed', globalHideNames); hideAllNamesBtn.textContent = globalHideNames ? 'Show names' : 'Hide names'; return; } if (key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; } if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; } const leftSet=new Set(['`','1','2','3','4','5','q','w','e','r','t','a','d','f','g','z','x','c','v','b']); const rightSet=new Set(['6','7','8','9','0','-','=', 'y','u','i','o','p','[',']','\\', 'h','j','k','l',';','\'', 'n','m',',','.','/']); if(e.location===3){ stopAutoplay(); next(); return; } if(rightSet.has(key)){ stopAutoplay(); next(); return; } if(leftSet.has(key)){ stopAutoplay(); prev(); return; } });
 
   // Swipe between pages
   function onTouchStart(e){ const t=e.changedTouches[0]; mobileSwipeStart = {x:t.clientX, y:t.clientY}; }
@@ -420,6 +424,11 @@
 
   // Play/Stop
   cornerPlayStop.addEventListener('click', ()=>{ if(autoplay) stopAutoplay(); else startAutoplay(); });
+
+  // Name controls
+  hideAllNamesBtn.addEventListener('click', ()=>{ globalHideNames = !globalHideNames; hideAllNamesBtn.textContent = globalHideNames ? 'Show names' : 'Hide names'; nameBar.classList.toggle('collapsed', globalHideNames); });
+  showThisNameBtn.addEventListener('click', ()=>{ if(globalHideNames){ perSlideReveal = true; nameBar.classList.remove('collapsed'); } });
+  openLinkBtn.addEventListener('click', ()=>{ if(currentLink && currentLink!=='#'){ window.open(currentLink, '_blank', 'noopener'); } });
 
   // Drawer controls (fine-only)
   speedFab.addEventListener('click', ()=>{ speedDrawer.classList.toggle('open'); });
