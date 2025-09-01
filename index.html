@@ -15,6 +15,8 @@
     .sp{flex:1}
     .iconBtn{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer}
     .btn{display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; user-select:none; font-weight:600}
+    .btn.wide{padding-left:32px; padding-right:32px}
+    .btn.playing{border-color:rgba(52,211,153,.7); background:rgba(52,211,153,.22)}
     .btn.primary{border-color:rgba(96,165,250,.6); background:rgba(96,165,250,.15)}
     .btn.ok{border-color:rgba(52,211,153,.6); background:rgba(52,211,153,.15)}
     .btn.warn{border-color:rgba(251,191,36,.6); background:rgba(251,191,36,.15)}
@@ -103,9 +105,9 @@
             <div class="title" id="entityName">&nbsp;</div>
           </div>
           <div class="quickRow" style="justify-content:center; gap:12px; margin-top:6px">
-            <button class="btn" id="hideAllNames">Hide names</button>
-            <button class="btn" id="showThisName">Show (this photo)</button>
-            <button class="btn" id="openLink">Link</button>
+            <button class="btn wide" id="hideAllNames">Hide names</button>
+            <button class="btn wide" id="showThisName">Show (this photo)</button>
+            <button class="btn wide" id="openLink">Link</button>
           </div>
         </div>
       </div>
@@ -175,7 +177,7 @@
   </footer>
 
   <!-- Play/Stop on left @45% -->
-  <div class="playCorner"><button class="btn primary" id="cornerPlayStop">⏯️ Play/Stop</button></div>
+  <div class="playCorner"><button class="btn primary wide" id="cornerPlayStop">⏯️ Play/Stop</button></div>
 
   <!-- Timing drawer (fine-only) -->
   <button class="fab" id="speedFab" title="Speed / Name delay">●</button>
@@ -235,7 +237,15 @@
 
   // Tabs
   const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
-  function setPage(idx){ tabs.forEach((t,i)=>{ const active=(i+1)===idx; t.page.classList.toggle('active', active); t.tab.setAttribute('aria-selected', String(active)); }); if(idx===1){ speedFab.style.display='grid'; } else { speedFab.style.display='none'; speedDrawer.classList.remove('open'); } }
+  function setPage(idx){
+    tabs.forEach((t,i)=>{ const active=(i+1)===idx; t.page.classList.toggle('active', active); t.tab.setAttribute('aria-selected', String(active)); });
+    const onSlide = idx===1;
+    const speedFabEl = document.getElementById('speedFab');
+    const speedDrawerEl = document.getElementById('speedDrawer');
+    const playCornerEl = document.querySelector('.playCorner');
+    if(onSlide){ speedFabEl.style.display='grid'; playCornerEl.style.display='block'; }
+    else { speedFabEl.style.display='none'; speedDrawerEl.classList.remove('open'); playCornerEl.style.display='none'; }
+  }); if(idx===1){ speedFab.style.display='grid'; } else { speedFab.style.display='none'; speedDrawer.classList.remove('open'); } }
   tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
   gearBtn.addEventListener('click', ()=> setPage(5));
   nextTabBtn.addEventListener('click', ()=>{ const active = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; setPage(active%5 + 1); });
@@ -389,8 +399,13 @@
       entityName.textContent = it.name;
       const att = await fetchAttribution(it.fileTitle).catch(()=>({filePageUrl:'#'}));
       currentLink = it.itemUrl && it.itemUrl!=='#' ? it.itemUrl : att.filePageUrl || '#';
-      nameBar.classList.toggle('collapsed', globalHideNames && !perSlideReveal);
-      setTimeout(()=>{ perSlideReveal=false; nameBar.classList.toggle('collapsed', globalHideNames); }, nameDelay);
+      // Always start hidden, then reveal per delay depending on global/per-slide state
+      nameBar.classList.add('collapsed');
+      setTimeout(()=>{
+        const shouldShow = (!globalHideNames) || perSlideReveal;
+        if(shouldShow) nameBar.classList.remove('collapsed');
+        perSlideReveal = false;
+      }, nameDelay);
       downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,'');
     };
     img.onerror = ()=>{ console.warn('Image failed, skipping'); next(); };
@@ -399,8 +414,8 @@
   function next(){ showIndex((currIndex + 1) % items.length); }
   function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
 
-  function startAutoplay(){ if(timer) clearInterval(timer); timer = setInterval(next, (window.__slideSeconds||2)*1000); autoplay = true; cornerPlayStop.textContent='⏹ Stop'; }
-  function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.textContent='▶️ Play'; }
+  function startAutoplay(){ if(timer) clearInterval(timer); timer = setInterval(next, (window.__slideSeconds||2)*1000); autoplay = true; cornerPlayStop.textContent='⏹ Stop'; document.getElementById('cornerPlayStop').classList.add('playing'); }
+  function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.textContent='▶️ Play'; document.getElementById('cornerPlayStop').classList.remove('playing'); }
 
   function setMode(isFixed){ fixedOrder = !!isFixed; modeRandom?.setAttribute('aria-pressed', String(!fixedOrder)); modeFixed?.setAttribute('aria-pressed', String(fixedOrder)); }
 
