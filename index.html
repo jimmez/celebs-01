@@ -1,219 +1,221 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Celeb Slideshow — Random Photo Fetcher</title>
-  <meta name="description" content="Slideshow that auto‑fetches photos from Wikidata/Commons. Seamless image swaps, mobile swipe, multi-page categories with JSON import/export. Name centered with global Hide and per-photo Show, separate Link button. Fine-only timing controls (sec ±1, +/−0.2s)." />
-  <style>
-    :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto 1fr auto}
-    header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:50; background:rgba(2,6,23,.6); backdrop-filter:blur(8px) saturate(1.2); border-bottom:1px solid rgba(255,255,255,.06)}
-    h1{font-size:16px; margin:0}
-    .sp{flex:1}
-    .iconBtn{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer}
-    .btn{display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; user-select:none; font-weight:600}
-    .btn.primary{border-color:rgba(96,165,250,.6); background:rgba(96,165,250,.15)}
-    .btn.ok{border-color:rgba(52,211,153,.6); background:rgba(52,211,153,.15)}
-    .btn.warn{border-color:rgba(251,191,36,.6); background:rgba(251,191,36,.15)}
-    .btn.danger{border-color:rgba(248,113,113,.7); background:rgba(248,113,113,.18)}
-    .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
-    .tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:rgba(2,6,23,.35); overflow:auto}
-    .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap}
-    .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.6)}
-    .page{display:none; height:100%}
-    .page.active{display:block}
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Celeb Slideshow — Random Photo Fetcher</title>
+<meta name="description" content="Slideshow that auto‑fetches photos from Wikidata/Commons. Seamless swaps, mobile swipe, multi-page categories with JSON import/export. Name centered with global Hide and per-photo Show, separate Link button. Fine-only timing controls (sec ±1, ±0.2s)." />
+<style>
+  :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto 1fr auto}
+  header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:50; background:rgba(2,6,23,.6); backdrop-filter:blur(8px) saturate(1.2); border-bottom:1px solid rgba(255,255,255,.06)}
+  h1{font-size:16px; margin:0}
+  .sp{flex:1}
+  .iconBtn{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer}
+  .btn{display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; user-select:none; font-weight:600}
+  .btn.wide{padding-left:28px; padding-right:28px}
+  .btn.primary{border-color:rgba(96,165,250,.6); background:rgba(96,165,250,.15)}
+  .btn.ok{border-color:rgba(52,211,153,.6); background:rgba(52,211,153,.15)}
+  .btn.warn{border-color:rgba(251,191,36,.6); background:rgba(251,191,36,.15)}
+  .btn.danger{border-color:rgba(248,113,113,.7); background:rgba(248,113,113,.18)}
+  .btn.playing{border-color:rgba(52,211,153,.8); background:rgba(52,211,153,.25)}
+  .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
 
-    .stage{position:relative; height:calc(100vh - 240px); min-height:360px; overflow:hidden; display:grid; place-items:center}
-    .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center}
-    img.photo{max-width:85%; max-height:75%; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6); opacity:0; transition:opacity .18s ease}
-    img.photo.show{opacity:1}
+  .tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:rgba(2,6,23,.35); overflow:auto}
+  .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap}
+  .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.6)}
+  .page{display:none; height:100%}
+  .page.active{display:block}
 
-    .hotzone{position:absolute; top:0; bottom:0}
-    .hotzone.left{left:0; width:33.333%}
-    .hotzone.right{right:0; width:66.667%}
+  .stage{position:relative; height:calc(100vh - 240px); min-height:360px; overflow:hidden; display:grid; place-items:center}
+  .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center}
+  img.photo{max-width:85%; max-height:75%; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6); opacity:0; transition:opacity .18s ease}
+  img.photo.show{opacity:1}
 
-    /* Name area */
-    .nameArea{position:absolute; left:50%; transform:translateX(-50%); bottom:24px; display:grid; gap:8px; place-items:center; width:min(92%, 820px)}
-    .nameBar{order:1; width:100%; background:rgba(2,6,23,.88); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 12px; text-align:center}
-    .nameBar.collapsed{display:none}
-    .title{font-size:22px; font-weight:800}
+  /* Click/tap zones */
+  .hotzone{position:absolute; top:0; bottom:0}
+  .hotzone.left{left:0; width:33.333%}
+  .hotzone.right{right:0; width:66.667%}
 
-    .builder{padding:12px}
-    .hintRow{display:flex; gap:10px; align-items:center; margin-bottom:8px}
-    .hint{font-size:13px; color:var(--muted)}
-    .hintToggle{width:18px; height:18px; border-radius:4px; background:#334155; border:1px solid rgba(255,255,255,.2); cursor:pointer}
+  /* Name area centered */
+  .nameArea{position:absolute; left:50%; transform:translateX(-50%); bottom:24px; display:grid; gap:8px; place-items:center; width:min(92%, 820px)}
+  .nameBar{order:1; width:100%; background:rgba(2,6,23,.88); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 12px; text-align:center}
+  .nameBar.collapsed{display:none}
+  .title{font-size:22px; font-weight:800}
 
-    .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
-    .termBtn{padding:12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
-    .termBtn.selected{outline:2px solid var(--accent); background:#1f2937}
-    .termBtn.editing{outline:2px dashed var(--warn)}
+  .builder{padding:12px}
+  .hintRow{display:flex; gap:10px; align-items:center; margin-bottom:8px}
+  .hint{font-size:13px; color:var(--muted)}
+  .hintToggle{width:18px; height:18px; border-radius:4px; background:#334155; border:1px solid rgba(255,255,255,.2); cursor:pointer}
 
-    .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
+  .termBtn{padding:12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
+  .termBtn.selected{outline:2px solid var(--accent); background:#1f2937}
+  .termBtn.editing{outline:2px dashed var(--warn)}
 
-    footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); border-top:1px solid rgba(255,255,255,.06)}
-    footer a{color:var(--ok); text-decoration:none}
+  .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
 
-    .toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none}
+  footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); border-top:1px solid rgba(255,255,255,.06)}
+  footer a{color:var(--ok); text-decoration:none}
 
-    .fab{position:fixed; right:16px; bottom:16px; width:56px; height:56px; border-radius:50%; background:#3b82f6; color:white; display:grid; place-items:center; font-size:22px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,.35); z-index:60}
-    .drawer{position:fixed; left:0; right:0; bottom:-260px; background:rgba(15,23,42,.96); border-top:1px solid rgba(255,255,255,.08); padding:12px; display:grid; gap:12px; transition:bottom .25s ease; z-index:55}
-    .drawer.open{bottom:0}
-    .quickRow{display:flex; gap:8px; flex-wrap:wrap}
-    .quickBtn{padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
+  .toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none}
 
-    /* Play/Stop on left, 45% up */
-    .playCorner{position:fixed; left:16px; bottom:45vh; z-index:65}
+  /* Floating blue button + drawer */
+  .fab{position:fixed; right:16px; bottom:16px; width:56px; height:56px; border-radius:50%; background:#3b82f6; color:white; display:grid; place-items:center; font-size:22px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,.35); z-index:60}
+  .drawer{position:fixed; left:0; right:0; bottom:-260px; background:rgba(15,23,42,.96); border-top:1px solid rgba(255,255,255,.08); padding:12px; display:grid; gap:12px; transition:bottom .25s ease; z-index:55}
+  .drawer.open{bottom:0}
+  .quickRow{display:flex; gap:8px; flex-wrap:wrap}
+  .quickBtn{padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
 
-    .debug{position:fixed; left:12px; bottom:60px; font-size:11px; color:#9fb7d6; opacity:.7}
+  /* Play/Stop on left, 45% up */
+  .playCorner{position:fixed; left:16px; bottom:45vh; z-index:65}
 
-    .stepper{display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.06)}
-    .stepper .stepVal{min-width:32px; text-align:center; font-weight:800}
+  .debug{position:fixed; left:12px; bottom:60px; font-size:11px; color:#9fb7d6; opacity:.7}
 
-    @media (max-width: 768px){ .controls .btn, .controls label{display:none} }
-  </style>
+  .stepper{display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.06)}
+  .stepper .stepVal{min-width:40px; text-align:center; font-weight:800}
+
+  @media (max-width: 768px){ .controls .btn, .controls label{display:none} }
+</style>
 </head>
 <body>
-  <header>
-    <h1>🎞️ Celeb Slideshow</h1>
-    <span class="badge" id="countBadge">—</span>
-    <div class="sp"></div>
-    <button class="iconBtn" id="gearBtn" title="Settings (JSON import/export)">⚙️</button>
-    <button class="iconBtn" id="nextTabBtn" title="Next page">➡️</button>
-  </header>
+<header>
+  <h1>🎞️ Celeb Slideshow</h1>
+  <span class="badge" id="countBadge">—</span>
+  <div class="sp"></div>
+  <button class="iconBtn" id="gearBtn" title="Settings (JSON import/export)">⚙️</button>
+  <button class="iconBtn" id="nextTabBtn" title="Next page">➡️</button>
+</header>
 
-  <nav class="tabs" role="tablist">
-    <button class="tab" role="tab" aria-controls="page1" aria-selected="true" id="tab1">Page 1: Slideshow</button>
-    <button class="tab" role="tab" aria-controls="page2" aria-selected="false" id="tab2">Page 2: Categories A</button>
-    <button class="tab" role="tab" aria-controls="page3" aria-selected="false" id="tab3">Page 3: Categories B</button>
-    <button class="tab" role="tab" aria-controls="page4" aria-selected="false" id="tab4">Page 4: Categories C</button>
-    <button class="tab" role="tab" aria-controls="page5" aria-selected="false" id="tab5">Page 5: Settings</button>
-  </nav>
+<nav class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-controls="page1" aria-selected="true" id="tab1">Page 1: Slideshow</button>
+  <button class="tab" role="tab" aria-controls="page2" aria-selected="false" id="tab2">Page 2: Categories A</button>
+  <button class="tab" role="tab" aria-controls="page3" aria-selected="false" id="tab3">Page 3: Categories B</button>
+  <button class="tab" role="tab" aria-controls="page4" aria-selected="false" id="tab4">Page 4: Categories C</button>
+  <button class="tab" role="tab" aria-controls="page5" aria-selected="false" id="tab5">Page 5: Settings</button>
+</nav>
 
-  <main>
-    <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
-      <div class="stage" id="stage">
-        <div class="imgwrap" id="imgwrap"></div>
-        <div class="hotzone left" id="zoneLeft" title="Previous"></div>
-        <div class="hotzone right" id="zoneRight" title="Next"></div>
-        <div class="nameArea">
-          <div class="nameBar" id="nameBar">
-            <div class="title" id="entityName">&nbsp;</div>
-          </div>
-          <div class="quickRow" style="justify-content:center; gap:12px; margin-top:6px">
-            <button class="btn" id="hideAllNames">Hide names</button>
-            <button class="btn" id="showThisName">Show (this photo)</button>
-            <button class="btn" id="openLink">Link</button>
-          </div>
+<main>
+  <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
+    <div class="stage" id="stage">
+      <div class="imgwrap" id="imgwrap"></div>
+      <div class="hotzone left" id="zoneLeft" title="Previous"></div>
+      <div class="hotzone right" id="zoneRight" title="Next"></div>
+      <div class="nameArea">
+        <div class="nameBar" id="nameBar"><div class="title" id="entityName">&nbsp;</div></div>
+        <div class="quickRow" style="justify-content:center; gap:12px; margin-top:6px">
+          <button class="btn wide" id="hideAllNames">Hide names</button>
+          <button class="btn wide" id="showThisName">Show (this photo)</button>
+          <button class="btn wide" id="openLink">Link</button>
         </div>
       </div>
-    </section>
-
-    <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
-      <div class="builder">
-        <div class="hintRow"><div class="hintToggle" id="hintToggle2"></div><div class="hint" id="hint2">Tap to select (blue). Triple‑click to edit. Apply clears cache and loads only selected. <a href="#" id="linkP3">Go to Page 3</a> • <a href="#" id="linkP4">Page 4</a> • <a href="#" id="linkP5">Settings</a> • <a href="#" id="linkBack1">Back to Page 1</a></div></div>
-        <div class="grid" id="termGrid1"></div>
-        <div class="builderActions">
-          <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
-          <button class="btn ok" id="addTerm1">Add</button>
-          <button class="btn primary" id="applyBtn">Apply selection</button>
-          <button class="btn danger" id="clearSelBtn">Clear selection</button>
-          <span class="hint">Mode:</span>
-          <button class="btn" id="modeRandom" aria-pressed="true">Random photos</button>
-          <button class="btn" id="modeFixed" aria-pressed="false">Same sequence</button>
-        </div>
-      </div>
-    </section>
-
-    <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
-      <div class="builder">
-        <div class="hintRow"><div class="hintToggle" id="hintToggle3"></div><div class="hint" id="hint3"><a href="#" id="linkP2">Page 2</a> • <a href="#" id="linkP4b">Page 4</a> • <a href="#" id="linkP5b">Settings</a> • <a href="#" id="linkBack2">Back to Page 1</a></div></div>
-        <div class="grid" id="termGrid2"></div>
-        <div class="builderActions">
-          <input type="text" id="customTerm2" placeholder="Add a custom term…" />
-          <button class="btn ok" id="addTerm2">Add</button>
-          <button class="btn primary" id="applyBtn2">Apply selection</button>
-          <button class="btn danger" id="clearSelBtn2">Clear selection</button>
-        </div>
-      </div>
-    </section>
-
-    <section id="page4" class="page" role="tabpanel" aria-labelledby="tab4">
-      <div class="builder">
-        <div class="hintRow"><div class="hintToggle" id="hintToggle4"></div><div class="hint" id="hint4"><a href="#" id="linkP2c">Page 2</a> • <a href="#" id="linkP3c">Page 3</a> • <a href="#" id="linkP5c">Settings</a> • <a href="#" id="linkBack3">Back to Page 1</a></div></div>
-        <div class="grid" id="termGrid3"></div>
-        <div class="builderActions">
-          <input type="text" id="customTerm3" placeholder="Add a custom term…" />
-          <button class="btn ok" id="addTerm3">Add</button>
-          <button class="btn primary" id="applyBtn3">Apply selection</button>
-          <button class="btn danger" id="clearSelBtn3">Clear selection</button>
-        </div>
-      </div>
-    </section>
-
-    <section id="page5" class="page" role="tabpanel" aria-labelledby="tab5">
-      <div class="builder">
-        <div class="hintRow"><div class="hintToggle" id="hintToggle5"></div><div class="hint" id="hint5">Settings: Export/Import categories as JSON. <a href="#" id="linkBack4">Back to Page 1</a></div></div>
-        <div style="display:grid; gap:10px; max-width:840px">
-          <button class="btn primary" id="exportBtn">Export categories → JSON</button>
-          <textarea id="jsonBox" placeholder='Paste JSON here to import…'></textarea>
-          <div style="display:flex; gap:8px; flex-wrap:wrap">
-            <button class="btn ok" id="importBtn">Import JSON</button>
-            <button class="btn warn" id="resetBtn">Reset to defaults</button>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <div>PC keys: Right‑side → <strong>Next</strong> (except <kbd>P</kbd> = play/pause). Left‑side → <strong>Previous</strong> (except <kbd>S</kbd> = name). <kbd>Space</kbd>/<kbd>P</kbd> = play/pause. Arrows work. While typing/renaming, hotkeys are disabled. Mobile: swipe left/right to switch pages.</div>
-    <div class="sp"></div>
-    <a href="#" id="downloadLink" title="Download current image">Download</a>
-  </footer>
-
-  <!-- Play/Stop on left @45% -->
-  <div class="playCorner"><button class="btn primary" id="cornerPlayStop">⏯️ Play/Stop</button></div>
-
-  <!-- Timing drawer (fine-only) -->
-  <button class="fab" id="speedFab" title="Speed / Name delay">●</button>
-  <div class="drawer" id="speedDrawer">
-    <div><strong>Slide speed</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
-    <div class="quickRow" id="fineRow">
-      <div class="stepper" data-type="sec">
-        <button class="quickBtn" data-delta="-1">−1s</button>
-        <span class="stepVal" id="fineSec">2</span><span class="hint"> s</span>
-        <button class="quickBtn" data-delta="1">＋1s</button>
-      </div>
-      <div class="stepper" data-type="ms">
-        <button class="quickBtn" data-delta="-0.2">−0.2s</button>
-        <span class="stepVal" id="fineMs">0</span><span class="hint"> ms</span>
-        <button class="quickBtn" data-delta="0.2">＋0.2s</button>
-      </div>
-      <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="fineTotal">2.0s</strong></div>
     </div>
+  </section>
 
-    <div><strong>Name reveal delay</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
-    <div class="quickRow" id="nameFineRow">
-      <div class="stepper" data-type="nsec">
-        <button class="quickBtn" data-delta="-1">−1s</button>
-        <span class="stepVal" id="nameSec">0</span><span class="hint"> s</span>
-        <button class="quickBtn" data-delta="1">＋1s</button>
+  <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
+    <div class="builder">
+      <div class="hintRow"><div class="hintToggle" id="hintToggle2"></div><div class="hint" id="hint2">Tap to select (blue). Triple‑click to edit. Apply clears cache and loads only selected. <a href="#" id="linkP3">Go to Page 3</a> • <a href="#" id="linkP4">Page 4</a> • <a href="#" id="linkP5">Settings</a> • <a href="#" id="linkBack1">Back to Page 1</a></div></div>
+      <div class="grid" id="termGrid1"></div>
+      <div class="builderActions">
+        <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
+        <button class="btn ok" id="addTerm1">Add</button>
+        <button class="btn primary" id="applyBtn">Apply selection</button>
+        <button class="btn danger" id="clearSelBtn">Clear selection</button>
+        <span class="hint">Mode:</span>
+        <button class="btn" id="modeRandom" aria-pressed="true">Random photos</button>
+        <button class="btn" id="modeFixed" aria-pressed="false">Same sequence</button>
       </div>
-      <div class="stepper" data-type="nms">
-        <button class="quickBtn" data-delta="-0.2">−0.2s</button>
-        <span class="stepVal" id="nameMs">0</span><span class="hint"> ms</span>
-        <button class="quickBtn" data-delta="0.2">＋0.2s</button>
-      </div>
-      <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="nameTotal">0.5s</strong></div>
     </div>
+  </section>
+
+  <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
+    <div class="builder">
+      <div class="hintRow"><div class="hintToggle" id="hintToggle3"></div><div class="hint" id="hint3"><a href="#" id="linkP2">Page 2</a> • <a href="#" id="linkP4b">Page 4</a> • <a href="#" id="linkP5b">Settings</a> • <a href="#" id="linkBack2">Back to Page 1</a></div></div>
+      <div class="grid" id="termGrid2"></div>
+      <div class="builderActions">
+        <input type="text" id="customTerm2" placeholder="Add a custom term…" />
+        <button class="btn ok" id="addTerm2">Add</button>
+        <button class="btn primary" id="applyBtn2">Apply selection</button>
+        <button class="btn danger" id="clearSelBtn2">Clear selection</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="page4" class="page" role="tabpanel" aria-labelledby="tab4">
+    <div class="builder">
+      <div class="hintRow"><div class="hintToggle" id="hintToggle4"></div><div class="hint" id="hint4"><a href="#" id="linkP2c">Page 2</a> • <a href="#" id="linkP3c">Page 3</a> • <a href="#" id="linkP5c">Settings</a> • <a href="#" id="linkBack3">Back to Page 1</a></div></div>
+      <div class="grid" id="termGrid3"></div>
+      <div class="builderActions">
+        <input type="text" id="customTerm3" placeholder="Add a custom term…" />
+        <button class="btn ok" id="addTerm3">Add</button>
+        <button class="btn primary" id="applyBtn3">Apply selection</button>
+        <button class="btn danger" id="clearSelBtn3">Clear selection</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="page5" class="page" role="tabpanel" aria-labelledby="tab5">
+    <div class="builder">
+      <div class="hintRow"><div class="hintToggle" id="hintToggle5"></div><div class="hint" id="hint5">Settings: Export/Import categories as JSON. <a href="#" id="linkBack4">Back to Page 1</a></div></div>
+      <div style="display:grid; gap:10px; max-width:840px">
+        <button class="btn primary" id="exportBtn">Export categories → JSON</button>
+        <textarea id="jsonBox" placeholder='Paste JSON here to import…'></textarea>
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <button class="btn ok" id="importBtn">Import JSON</button>
+          <button class="btn warn" id="resetBtn">Reset to defaults</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div>PC keys: Right‑side → <strong>Next</strong> (except <kbd>P</kbd> = play/pause). Left‑side → <strong>Previous</strong> (except <kbd>S</kbd> = name). <kbd>Space</kbd>/<kbd>P</kbd> = play/pause. Arrows work. While typing/renaming, hotkeys are disabled. Mobile: swipe left/right to switch pages.</div>
+  <div class="sp"></div>
+  <a href="#" id="downloadLink" title="Download current image">Download</a>
+</footer>
+
+<!-- Play/Stop on left @45% -->
+<div class="playCorner"><button class="btn primary wide" id="cornerPlayStop">⏯️ Play/Stop</button></div>
+
+<!-- Timing drawer (fine-only) -->
+<button class="fab" id="speedFab" title="Speed / Name delay">●</button>
+<div class="drawer" id="speedDrawer">
+  <div><strong>Slide speed</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
+  <div class="quickRow" id="fineRow">
+    <div class="stepper" data-type="sec">
+      <button class="quickBtn" data-delta="-1">−1s</button>
+      <span class="stepVal" id="fineSec">2</span><span class="hint"> s</span>
+      <button class="quickBtn" data-delta="1">＋1s</button>
+    </div>
+    <div class="stepper" data-type="ms">
+      <button class="quickBtn" data-delta="-0.2">−0.2s</button>
+      <span class="stepVal" id="fineMs">0</span><span class="hint"> ms</span>
+      <button class="quickBtn" data-delta="0.2">＋0.2s</button>
+    </div>
+    <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="fineTotal">2.0s</strong></div>
   </div>
 
-  <div class="toast" id="toast"></div>
-  <div class="debug" id="debug"></div>
+  <div><strong>Name reveal delay</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
+  <div class="quickRow" id="nameFineRow">
+    <div class="stepper" data-type="nsec">
+      <button class="quickBtn" data-delta="-1">−1s</button>
+      <span class="stepVal" id="nameSec">0</span><span class="hint"> s</span>
+      <button class="quickBtn" data-delta="1">＋1s</button>
+    </div>
+    <div class="stepper" data-type="nms">
+      <button class="quickBtn" data-delta="-0.2">−0.2s</button>
+      <span class="stepVal" id="nameMs">0.0</span><span class="hint"> s</span>
+      <button class="quickBtn" data-delta="0.2">＋0.2s</button>
+    </div>
+    <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="nameTotal">0.5s</strong></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="debug" id="debug"></div>
 
 <script>
 (function(){
@@ -236,7 +238,14 @@
 
   // Tabs
   const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
-  function setPage(idx){ tabs.forEach((t,i)=>{ const active=(i+1)===idx; t.page.classList.toggle('active', active); t.tab.setAttribute('aria-selected', String(active)); }); if(idx===1){ speedFab.style.display='grid'; } else { speedFab.style.display='none'; speedDrawer.classList.remove('open'); } }
+  function setPage(idx){
+    tabs.forEach((t,i)=>{ const active=(i+1)===idx; t.page.classList.toggle('active', active); t.tab.setAttribute('aria-selected', String(active)); });
+    const onSlide = idx===1;
+    // Hide floating controls away from slideshow page so they don't cover Apply/Clear
+    document.querySelector('.playCorner').style.display = onSlide? 'block':'none';
+    speedFab.style.display = onSlide? 'grid':'none';
+    if(!onSlide){ speedDrawer.classList.remove('open'); }
+  }
   tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
   gearBtn.addEventListener('click', ()=> setPage(5));
   nextTabBtn.addEventListener('click', ()=>{ const active = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; setPage(active%5 + 1); });
@@ -268,7 +277,7 @@
   const resetBtn = document.getElementById('resetBtn');
 
   // State
-  let items = []; let timer=null; let autoplay=true; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null; let nameDelay=500; let globalHideNames=false; let perSlideReveal=false; let currentLink='#';
+  let items = []; let timer=null; let autoplay=false; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null; let nameDelay=500; let globalHideNames=false; let perSlideReveal=false; let currentLink='#';
   window.__slideSeconds = 2; // default 2s
 
   // SPARQL block helpers — unified ?entity so non-people (objects/cars) work
@@ -325,7 +334,8 @@
         const parts = ['?person wdt:P31 wd:Q5 ;'];
         if(countryQ) parts.push(` wdt:P27 wd:${countryQ} ;`);
         if(roleQ) parts.push(` wdt:P106 wd:${roleQ} ;`);
-        parts.push(' wdt:P18 ?image . BIND(?person AS ?entity)'); blocks.push(`{ ${parts.join('')} }`);
+        parts.push(' wdt:P18 ?image . BIND(?person AS ?entity)');
+        blocks.push(`{ ${parts.join('')} }`);
       } else {
         blocks.push(CATEGORY_BLOCKS['objects']());
       }
@@ -390,8 +400,13 @@
       entityName.textContent = it.name;
       const att = await fetchAttribution(it.fileTitle).catch(()=>({filePageUrl:'#'}));
       currentLink = it.itemUrl && it.itemUrl!=='#' ? it.itemUrl : att.filePageUrl || '#';
-      nameBar.classList.toggle('collapsed', globalHideNames && !perSlideReveal);
-      setTimeout(()=>{ perSlideReveal=false; nameBar.classList.toggle('collapsed', globalHideNames); }, nameDelay);
+      // Name reveal delay handling
+      nameBar.classList.add('collapsed');
+      setTimeout(()=>{
+        const shouldShow = (!globalHideNames) || perSlideReveal;
+        if(shouldShow) nameBar.classList.remove('collapsed');
+        perSlideReveal = false;
+      }, nameDelay);
       downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,'');
     };
     img.onerror = ()=>{ console.warn('Image failed, skipping'); next(); };
@@ -400,12 +415,12 @@
   function next(){ showIndex((currIndex + 1) % items.length); }
   function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
 
-  function startAutoplay(){ if(timer) clearInterval(timer); timer = setInterval(next, (window.__slideSeconds||2)*1000); autoplay = true; cornerPlayStop.textContent='⏹ Stop'; }
-  function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.textContent='▶️ Play'; }
+  function startAutoplay(){ if(timer) clearInterval(timer); timer = setInterval(next, (window.__slideSeconds||2)*1000); autoplay = true; cornerPlayStop.textContent='⏹ Stop'; cornerPlayStop.classList.add('playing'); }
+  function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.textContent='▶️ Play'; cornerPlayStop.classList.remove('playing'); }
 
   function setMode(isFixed){ fixedOrder = !!isFixed; modeRandom?.setAttribute('aria-pressed', String(!fixedOrder)); modeFixed?.setAttribute('aria-pressed', String(fixedOrder)); }
 
-  async function applySelection(){ items = []; currIndex = -1; countBadge.textContent = 'Fetching…'; const chosen = collectSelectedTerms(); if(!chosen.length){ toast.textContent='Select one or more categories first.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); return; } try{ let data = await fetchWDFromTerms(chosen); if(!fixedOrder) data = data.sort(()=>Math.random()-0.5); items = data; countBadge.textContent = `${items.length} photos`; if(!items.length){ return; } showIndex(0); startAutoplay(); debug.textContent = 'Loaded '+items.length+' photos.'; }catch(e){ console.error(e); countBadge.textContent='0'; debug.textContent = e.message; } }
+  async function applySelection(){ items = []; currIndex = -1; countBadge.textContent = 'Fetching…'; const chosen = collectSelectedTerms(); if(!chosen.length){ toast.textContent='Select one or more categories first.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); return; } try{ let data = await fetchWDFromTerms(chosen); if(!fixedOrder) data = data.sort(()=>Math.random()-0.5); items = data; countBadge.textContent = `${items.length} photos`; if(!items.length){ return; } setPage(1); showIndex(0); startAutoplay(); debug.textContent = 'Loaded '+items.length+' photos.'; }catch(e){ console.error(e); countBadge.textContent='0'; debug.textContent = e.message; toast.textContent = 'Fetch error: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 2000); } }
   function collectSelectedTerms(){ const out=[]; grids.forEach(g=> out.push(...Array.from(g.grid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term||b.textContent.trim()))); return out.filter(Boolean); }
 
   function isTypingTarget(t){ if(!t) return false; const tag=(t.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t.isContentEditable; }
@@ -413,11 +428,10 @@
   // Hotkeys
   document.addEventListener('keydown', (e)=>{ if(isTypingTarget(e.target)) return; const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now; const key=(e.key||'').toLowerCase(); if (e.code==='Space'||key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; } if (key==='s'){ e.preventDefault(); globalHideNames = !globalHideNames; nameBar.classList.toggle('collapsed', globalHideNames); hideAllNamesBtn.textContent = globalHideNames ? 'Show names' : 'Hide names'; return; } if (key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; } if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; } const leftSet=new Set(['`','1','2','3','4','5','q','w','e','r','t','a','d','f','g','z','x','c','v','b']); const rightSet=new Set(['6','7','8','9','0','-','=', 'y','u','i','o','p','[',']','\\', 'h','j','k','l',';','\'', 'n','m',',','.','/']); if(e.location===3){ stopAutoplay(); next(); return; } if(rightSet.has(key)){ stopAutoplay(); next(); return; } if(leftSet.has(key)){ stopAutoplay(); prev(); return; } });
 
-  // Swipe between pages
-  function onTouchStart(e){ const t=e.changedTouches[0]; mobileSwipeStart = {x:t.clientX, y:t.clientY}; }
-  function onTouchEnd(e){ if(!mobileSwipeStart) return; const t=e.changedTouches[0]; const dx=t.clientX-mobileSwipeStart.x; const dy=t.clientY-mobileSwipeStart.y; const adx=Math.abs(dx), ady=Math.abs(dy); if(adx>40 && ady<60){ const activeIdx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; if(dx<0 && activeIdx<5){ setPage(activeIdx+1); } else if(dx>0 && activeIdx>1){ setPage(activeIdx-1); } } }
-  document.addEventListener('touchstart', onTouchStart, {passive:true});
-  document.addEventListener('touchend', onTouchEnd, {passive:true});
+  // Swipe between pages (also works on desktop touch devices)
+  let touchStart=null;
+  document.addEventListener('touchstart', (e)=>{ const t=e.changedTouches[0]; touchStart={x:t.clientX,y:t.clientY}; }, {passive:true});
+  document.addEventListener('touchend', (e)=>{ if(!touchStart) return; const t=e.changedTouches[0]; const dx=t.clientX-touchStart.x; const dy=t.clientY-touchStart.y; if(Math.abs(dx)>40 && Math.abs(dy)<60){ const activeIdx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; if(dx<0 && activeIdx<5) setPage(activeIdx+1); if(dx>0 && activeIdx>1) setPage(activeIdx-1); } touchStart=null; }, {passive:true});
 
   // Click zones
   document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
@@ -434,30 +448,23 @@
   // Drawer controls (fine-only)
   speedFab.addEventListener('click', ()=>{ speedDrawer.classList.toggle('open'); });
   function clampStep(val){ let v = Math.max(0, Math.min(10, Number(val)||0)); v = Math.round(v/0.2)*0.2; return Number(v.toFixed(1)); }
-  function updateSpeedDisplay(){ document.getElementById('fineSec').textContent = String(Math.floor(window.__slideSeconds||0)); const ms = Math.round(((window.__slideSeconds||0)-Math.floor(window.__slideSeconds||0))*1000/200)*200; document.getElementById('fineMs').textContent = String(ms); document.getElementById('fineTotal').textContent = (window.__slideSeconds||0).toFixed(1)+'s'; }
+  function updateSpeedDisplay(){ const sec = Math.floor(window.__slideSeconds||0); const frac = (window.__slideSeconds||0) - sec; const ms = Math.round(frac*1000/200)*200; document.getElementById('fineSec').textContent = String(sec); document.getElementById('fineMs').textContent = String(ms); document.getElementById('fineTotal').textContent = (window.__slideSeconds||0).toFixed(1)+'s'; }
   function setSlide(seconds){ window.__slideSeconds = clampStep(seconds); updateSpeedDisplay(); if(autoplay) startAutoplay(); }
   updateSpeedDisplay();
-  document.querySelectorAll('#fineRow .stepper').forEach(box=>{
-    box.querySelectorAll('button').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const delta = Number(btn.dataset.delta);
-        setSlide((window.__slideSeconds||0) + delta);
-      });
-    });
+  document.querySelectorAll('#fineRow .stepper .quickBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ const delta = Number(btn.dataset.delta); setSlide((window.__slideSeconds||0) + delta); });
   });
 
   // Name delay fine controls
-  function updateNameDisplay(){ const sec = Math.floor(nameDelay/1000); const ms = Math.round((nameDelay%1000)/200)*200; document.getElementById('nameSec').textContent = String(sec); document.getElementById('nameMs').textContent = String(ms); document.getElementById('nameTotal').textContent = (nameDelay/1000).toFixed(1)+'s'; }
+  function updateNameDisplay(){ const s = nameDelay/1000; const sec = Math.floor(s); const frac = s-sec; const part = Math.round(frac/0.2)*0.2; document.getElementById('nameSec').textContent = String(sec); document.getElementById('nameMs').textContent = part.toFixed(1); document.getElementById('nameTotal').textContent = (sec+part).toFixed(1)+'s'; }
   function setNameDelay(seconds){ const s = clampStep(seconds); nameDelay = Math.round(s*1000); updateNameDisplay(); }
   updateNameDisplay();
-  document.querySelectorAll('#nameFineRow .stepper').forEach(box=>{
-    box.querySelectorAll('button').forEach(btn=>{
-      btn.addEventListener('click', ()=>{ const delta = Number(btn.dataset.delta); setNameDelay((nameDelay/1000) + delta); });
-    });
+  document.querySelectorAll('#nameFineRow .stepper .quickBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ const delta = Number(btn.dataset.delta); setNameDelay((nameDelay/1000) + delta); });
   });
 
   // Builder helpers
-  function makeTermButton(label, gridEl){ const btn=document.createElement('button'); btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0'; btn.addEventListener('click', ()=>{ const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c); if(c>=3){ btn.dataset.clicks='0'; btn.classList.add('editing'); const prev=btn.dataset.term; const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%'; input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); } }); input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); }); btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return; } btn.classList.toggle('selected'); setTimeout(()=>{ btn.dataset.clicks='0'; }, 400); }); gridEl.appendChild(btn); return btn; }
+  function makeTermButton(label, gridEl){ const btn=document.createElement('button'); btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0'; btn.addEventListener('click', ()=>{ const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c); if(c>=3){ btn.dataset.clicks='0'; btn.classList.add('editing'); const prev=btn.dataset.term; const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%'; input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); } }); input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); }); btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return; } btn.classList.toggle('selected'); setTimeout(()=>{ btn.dataset.clicks='0'; }, 350); }); gridEl.appendChild(btn); return btn; }
 
   function gatherAllTiles(){ const tiles=[]; grids.forEach((g,gi)=>{ g.grid.querySelectorAll('.termBtn').forEach((b,idx)=>{ tiles.push({ label:b.dataset.term||b.textContent.trim(), selected:b.classList.contains('selected'), page:gi+2, index:idx }); }); }); return tiles; }
   function renderFromTiles(tiles){ grids.forEach(g=> g.grid.innerHTML=''); tiles.forEach((t,i)=>{ const gi = Math.min(Math.floor(i/16), grids.length-1); const b = makeTermButton(t.label, grids[gi].grid); if(t.selected) b.classList.add('selected'); }); ensureMinTiles(); attachAddHandlers(); }
@@ -471,9 +478,9 @@
     clearSelBtn?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
     clearSelBtn2?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
     clearSelBtn3?.addEventListener('click', ()=>{ grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'))); items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay(); });
-    applyBtn?.addEventListener('click', ()=>{ setPage(1); applySelection(); });
-    applyBtn2?.addEventListener('click', ()=>{ setPage(1); applySelection(); });
-    applyBtn3?.addEventListener('click', ()=>{ setPage(1); applySelection(); });
+    applyBtn?.addEventListener('click', ()=>{ applySelection(); });
+    applyBtn2?.addEventListener('click', ()=>{ applySelection(); });
+    applyBtn3?.addEventListener('click', ()=>{ applySelection(); });
   }
 
   // JSON
@@ -484,9 +491,10 @@
   // Defaults
   function populateDefaults(){ grids.forEach(g=> g.grid.innerHTML=''); const presets = [ 'Beatles', 'Norwegian celebs', 'US celebs', 'Norwegian politicians', 'Norwegian ceo', 'US ceo', 'World ceo', 'Music producers', "Models of the 50's", "Models of the 80's", 'famous movie characters', 'famous cartoon characters', 'objects', 'household objects', 'clutter home objects', 'cars', 'cars of 2010', 'cars of 2025', 'Norwegian actors','Norwegian musicians','Norwegian comedians','Norwegian writers','UK celebrity','British actors','German footballers','50s movie stars','Danish actors','Swedish politicians','Icelandic singers','Finnish musicians','Italian actors','Spanish footballers','French actors','Canadian singers' ]; presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton(p, grids[gi].grid); }); ensureMinTiles(); attachAddHandlers(); }
 
+  // Init
   populateDefaults();
-  grids[0].grid.querySelectorAll('.termBtn').forEach(b=>{ if(['Norwegian celebs','Norwegian actors','Norwegian musicians'].includes(b.dataset.term)) b.classList.add('selected'); });
-  applySelection();
+  // Start on Categories page so you definitely see buttons first
+  setPage(2);
 })();
 </script>
 </body>
