@@ -104,8 +104,9 @@
         <div class="nameOverlay hidden" id="nameOverlay">&nbsp;</div>
 
         <!-- Bottom toggle only -->
-        <div class="nameArea">
-          <button class="nameToggle" id="nameToggle">Hide name</button>
+        <div class=\"nameArea\">
+          <button class=\"nameToggle\" id=\"nameToggle\">Hide names (next slides)</button>
+          <button class=\"nameToggle\" id=\"namePeek\">Reveal this photo</button>
         </div>
       </div>
     </section>
@@ -255,7 +256,7 @@
   const resetBtn = document.getElementById('resetBtn');
 
   // State
-  let items = []; let timer=null; let autoplay=true; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null; let nameDelay=1000; // 1s default
+  let items = []; let timer=null; let autoplay=true; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let mobileSwipeStart=null; let nameDelay=1000; let showNames=true; // 1s default
   window.__slideSeconds = 2; // 2s default
 
   function blockHumanWithImage(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . }`; }
@@ -350,8 +351,10 @@
 
   function clearImage(){ wrap.innerHTML = '<div class="hint">Loading…</div>'; }
 
-  async function showIndex(i){ if(!items.length) return; currIndex = (i + items.length) % items.length; const it = items[currIndex]; clearImage(); const img = new Image(); img.className='photo'; img.decoding='async'; img.onload = ()=>{ wrap.innerHTML=''; wrap.appendChild(img); // name timing
-      nameOverlay.classList.add('hidden'); nameOverlay.textContent = it.name; setTimeout(()=>{ nameOverlay.classList.remove('hidden'); updateNameToggle(); }, nameDelay); downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,''); }; img.onerror = ()=>{ toast.textContent='Skipped an image that failed to load'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); next(); }; img.src = it.imageUrl; }
+  async function showIndex(i){ if(!items.length) return; currIndex = (i + items.length) % items.length; const it = items[currIndex]; clearImage(); const img = new Image(); img.className='photo'; img.decoding='async'; img.onload = ()=>{ wrap.innerHTML=''; wrap.appendChild(img); nameOverlay.textContent = it.name; // respect global showNames + delayed reveal
+      if(showNames){ nameOverlay.classList.add('hidden'); setTimeout(()=> nameOverlay.classList.remove('hidden'), nameDelay); }
+      else { nameOverlay.classList.add('hidden'); }
+      downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,''); }; img.onerror = ()=>{ toast.textContent='Skipped an image that failed to load'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); next(); }; img.src = it.imageUrl; }
   function next(){ showIndex((currIndex + 1) % items.length); }
   function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
 
@@ -364,7 +367,9 @@
   function collectSelectedTerms(){ const out=[]; grids.forEach(g=> out.push(...Array.from(g.grid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term||b.textContent.trim()))); return out.filter(Boolean); }
 
   function isTypingTarget(t){ if(!t) return false; const tag=(t.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t.isContentEditable; }
-  function updateNameToggle(){ nameToggle.textContent = nameOverlay.classList.contains('hidden') ? 'Show name' : 'Hide name'; }
+  function updateNameToggle(){
+    nameToggle.textContent = showNames ? 'Hide names (next slides)' : 'Show names (next slides)';
+  }
   function toggleName(){ nameOverlay.classList.toggle('hidden'); updateNameToggle(); }
   document.addEventListener('keydown', (e)=>{ if(isTypingTarget(e.target)) return; const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now; const key=(e.key||'').toLowerCase(); if (e.code==='Space'||key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; } if (key==='s'){ e.preventDefault(); toggleName(); return; } if (key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; } if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; } const leftSet=new Set(['`','1','2','3','4','5','q','w','e','r','t','a','d','f','g','z','x','c','v','b']); const rightSet=new Set(['6','7','8','9','0','-','=', 'y','u','i','o','p','[',']','\\', 'h','j','k','l',';','\'', 'n','m',',','.','/']); if(e.location===3){ stopAutoplay(); next(); return; } if(rightSet.has(key)){ stopAutoplay(); next(); return; } if(leftSet.has(key)){ stopAutoplay(); prev(); return; } });
 
@@ -394,7 +399,8 @@
 
   // Name delay fine controls
   function updateNameDisplay(){ const sec = Math.floor(nameDelay/1000); const ms = Math.round((nameDelay%1000)/200)*200; document.getElementById('nameSec').textContent = String(sec); document.getElementById('nameMs').textContent = String(ms); document.getElementById('nameTotal').textContent = (nameDelay/1000).toFixed(1)+'s'; }
-  function setNameDelay(seconds){ const s = clampStep(seconds); nameDelay = Math.round(s*1000); updateNameDisplay(); }
+  function setNameDelay(seconds){ const s = clampStep(seconds); nameDelay = Math.round(s*1000); updateNameDisplay();
+  updateNameToggle(); }
   updateNameDisplay();
   document.querySelectorAll('#nameFineRow .stepper').forEach(box=>{
     box.querySelectorAll('button').forEach(btn=>{ btn.addEventListener('click', ()=>{ const delta = Number(btn.dataset.delta); setNameDelay((nameDelay/1000) + delta); }); });
@@ -426,7 +432,24 @@
   function populateDefaults(){ grids.forEach(g=> g.grid.innerHTML=''); const presets = [ 'Beatles', 'Norwegian celebs', 'US celebs', 'Norwegian politicians', 'Norwegian ceo', 'US ceo', 'World ceo', 'Music producers', "Models of the 50's", "Models of the 80's", 'famous movie characters', 'famous cartoon characters', 'objects', 'household objects', 'clutter home objects', 'cars', 'cars of 2010', 'cars of 2025', 'Norwegian actors','Norwegian musicians','Norwegian comedians','Norwegian writers','UK celebrity','British actors','German footballers','50s movie stars','Danish actors','Swedish politicians','Icelandic singers','Finnish musicians','Italian actors','Spanish footballers','French actors','Canadian singers' ]; presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton(p, grids[gi].grid); }); ensureMinTiles(); attachAddHandlers(); }
 
   // Toggle name overlay
-  nameToggle.addEventListener('click', ()=> toggleName());
+  nameToggle.addEventListener('click', ()=>{
+    showNames = !showNames;
+    // Apply immediately to current photo
+    if(!showNames){ nameOverlay.classList.add('hidden'); }
+    else {
+      nameOverlay.classList.add('hidden');
+      setTimeout(()=> nameOverlay.classList.remove('hidden'), nameDelay);
+    }
+    updateNameToggle();
+  });
+  // Reveal for current photo only (temporary)
+  document.getElementById('namePeek').addEventListener('click', ()=>{
+    nameOverlay.classList.remove('hidden');
+    if(!showNames){
+      const d = Math.max(0, nameDelay|0);
+      if(d>0){ setTimeout(()=> nameOverlay.classList.add('hidden'), d); }
+    }
+  });
 
   populateDefaults();
   grids[0].grid.querySelectorAll('.termBtn').forEach(b=>{ if(['Norwegian celebs','Norwegian actors','Norwegian musicians'].includes(b.dataset.term)) b.classList.add('selected'); });
