@@ -1,11 +1,10 @@
-<!-- v20 -->
+<!-- v21 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Celeb Slideshow — Random Photo Fetcher (v20)</title>
-<meta name="description" content="v20: settings toggles back, photos always centered (even after Clear), categories auto-apply, random only." />
+<title>Celeb Slideshow — Random Photo Fetcher (v21)</title>
 <style>
   :root { --bg:#0b0f14; --rail:#0d1420; --fg:#e5eef7; --muted:#93a3b8; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; }
   *{box-sizing:border-box}
@@ -16,12 +15,14 @@
     display:grid; grid-template-rows:auto auto 1fr auto; min-height:100vh;
   }
 
-  /* Left rail (fixed) */
+  /* Fixed left rail (doesn't block clicks outside its buttons) */
   .leftRail{
     position:fixed; left:0; top:0; bottom:0; width:74px; background:linear-gradient(180deg,var(--rail),rgba(8,12,20,.9));
     border-right:1px solid rgba(255,255,255,.06); z-index:65; display:grid; grid-template-rows:1fr auto auto 1fr; gap:10px; place-items:center; padding-bottom:12px;
+    pointer-events:none; /* key: rail itself ignores clicks */
   }
-  .leftRail::before{content:''; position:absolute; top:0; bottom:0; left:0; width:6px; background:rgba(255,255,255,.06)}
+  .leftRail > *{ pointer-events:auto } /* buttons are clickable */
+  .leftRail::before{content:''; position:absolute; top:0; bottom:0; left:0; width:6px; background:rgba(255,255,255,.06); pointer-events:none}
   .leftRail.playing::before{background:var(--ok)}
   .railBtn{width:64px; min-height:44px; display:grid; place-items:center; padding:8px; text-align:center}
   .playButtonBig{width:64px; height:64px; border-radius:16px; font-size:20px; display:grid; place-items:center}
@@ -44,7 +45,7 @@
 
   /* Tabs */
   .tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:rgba(2,6,23,.35); overflow:auto; position:sticky; top:56px; z-index:49}
-  .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap}
+  .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap; background:rgba(255,255,255,.03)}
   .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.6)}
 
   main{min-height:0}
@@ -130,7 +131,7 @@
   <!-- Page 1 -->
   <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
     <div class="stage" id="stage">
-      <div class="imgwrap" id="imgwrap"><!-- centered image lives here --></div>
+      <div class="imgwrap" id="imgwrap"></div>
       <div class="hotzone left"  id="zoneLeft"  title="Previous"></div>
       <div class="hotzone right" id="zoneRight" title="Next"></div>
 
@@ -183,7 +184,7 @@
     </div>
   </section>
 
-  <!-- Page 5: Settings (timing + JSON) -->
+  <!-- Page 5: Settings -->
   <section id="page5" class="page" role="tabpanel" aria-labelledby="tab5">
     <div class="builder" style="max-width:720px">
       <h3>Timing</h3>
@@ -195,10 +196,10 @@
           <span class="stepVal" id="fineSec">2.0</span>
           <button class="quickBtn" data-delta="1">＋1s</button>
         </div>
-        <div class="stepper">
-          <button class="quickBtn" data-delta="-0.2" data-type="ms">−0.2s</button>
+        <div class="stepper" id="fineRowMs">
+          <button class="quickBtn" data-delta="-0.2">−0.2s</button>
           <span class="stepVal" id="fineMs">0.0</span>
-          <button class="quickBtn" data-delta="0.2" data-type="ms">＋0.2s</button>
+          <button class="quickBtn" data-delta="0.2">＋0.2s</button>
         </div>
         <strong id="fineTotal">2.0s</strong>
       </div>
@@ -210,10 +211,10 @@
           <span class="stepVal" id="nameSec">0.5</span>
           <button class="quickBtn" data-delta="1">＋1s</button>
         </div>
-        <div class="stepper">
-          <button class="quickBtn" data-delta="-0.2" data-type="ms">−0.2s</button>
+        <div class="stepper" id="nameFineRowMs">
+          <button class="quickBtn" data-delta="-0.2">−0.2s</button>
           <span class="stepVal" id="nameMs">0.0</span>
-          <button class="quickBtn" data-delta="0.2" data-type="ms">＋0.2s</button>
+          <button class="quickBtn" data-delta="0.2">＋0.2s</button>
         </div>
         <strong id="nameTotal">0.5s</strong>
       </div>
@@ -239,7 +240,7 @@
 
 <script>
 (function(){
-  // ---------- Stage sizing (keeps center correct)
+  // Stage height calc (prevents off-center after orientation/resize)
   const header = document.querySelector('header');
   const tabsRow = document.getElementById('tabsRow');
   const footer = document.querySelector('footer');
@@ -253,7 +254,7 @@
   addEventListener('orientationchange', setStageHeight);
   setStageHeight();
 
-  // ---------- Tabs + Settings toggle
+  // Tabs + Settings toggle
   const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
   let lastNonSettings = 1;
   function activeIndex(){ return tabs.findIndex(t=> t.page.classList.contains('active')) + 1; }
@@ -275,7 +276,7 @@
     setPage(active%5 + 1);
   });
 
-  // ---------- Elements & state
+  // Elements & state
   const leftRail = document.getElementById('leftRail');
   const cornerPlayStop = document.getElementById('cornerPlayStop');
   const hideAllNamesBtn = document.getElementById('hideAllNames');
@@ -294,46 +295,31 @@
   window.__slideSeconds = 2.0;
   let nameDelay = 500;
 
-  // ---------- Timing controls (Settings page)
+  // Timing controls
   function roundStep(v){ return Number((Math.round(v/0.2)*0.2).toFixed(1)); }
-  function updateSpeedDisplay(){
-    const s = window.__slideSeconds;
-    const sec = Math.floor(s);
-    const frac = roundStep(s-sec);
-    document.getElementById('fineSec').textContent = (sec+frac).toFixed(1);
-    document.getElementById('fineMs').textContent = frac.toFixed(1);
-    document.getElementById('fineTotal').textContent = (sec+frac).toFixed(1)+'s';
-  }
   function setSlide(s){
     s = Math.max(0, Math.min(10, s));
     window.__slideSeconds = roundStep(s);
-    updateSpeedDisplay();
+    document.getElementById('fineSec').textContent = window.__slideSeconds.toFixed(1);
+    document.getElementById('fineMs').textContent = (window.__slideSeconds - Math.floor(window.__slideSeconds)).toFixed(1);
+    document.getElementById('fineTotal').textContent = window.__slideSeconds.toFixed(1)+'s';
     if(autoplay) startAutoplay();
-  }
-  updateSpeedDisplay();
-  document.querySelectorAll('#fineRow .quickBtn, #fineRow + .stepper .quickBtn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ const delta = Number(btn.dataset.delta); setSlide((window.__slideSeconds||0) + delta); });
-  });
-
-  function updateNameDisplay(){
-    const s = roundStep(nameDelay/1000);
-    const sec = Math.floor(s);
-    const frac = roundStep(s-sec);
-    document.getElementById('nameSec').textContent = (sec+frac).toFixed(1);
-    document.getElementById('nameMs').textContent = frac.toFixed(1);
-    document.getElementById('nameTotal').textContent = (sec+frac).toFixed(1)+'s';
   }
   function setNameDelaySeconds(s){
     s = Math.max(0, Math.min(10, s));
     nameDelay = Math.round(roundStep(s)*1000);
-    updateNameDisplay();
+    document.getElementById('nameSec').textContent = (nameDelay/1000).toFixed(1);
+    document.getElementById('nameMs').textContent = ((nameDelay/1000) - Math.floor(nameDelay/1000)).toFixed(1);
+    document.getElementById('nameTotal').textContent = (nameDelay/1000).toFixed(1)+'s';
   }
-  updateNameDisplay();
-  document.querySelectorAll('#nameFineRow .quickBtn, #nameFineRow + .stepper .quickBtn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ const delta = Number(btn.dataset.delta); setNameDelaySeconds((nameDelay/1000) + delta); });
+  document.querySelectorAll('#fineRow .quickBtn, #fineRowMs .quickBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ const d=Number(btn.dataset.delta); setSlide((window.__slideSeconds||0)+d); });
+  });
+  document.querySelectorAll('#nameFineRow .quickBtn, #nameFineRowMs .quickBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ const d=Number(btn.dataset.delta); setNameDelaySeconds((nameDelay/1000)+d); });
   });
 
-  // ---------- Keyboard
+  // Keyboard
   let lastKeyTime=0;
   function isTyping(t){ return t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA' || t.isContentEditable); }
   document.addEventListener('keydown', e=>{
@@ -346,16 +332,13 @@
     if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; }
   });
 
-  // ---------- Image pipeline (seamless + fallback)
+  // Image pipeline
   function swapIn(img){
-    const prev = currentImg;
     currentImg = img; currentImg.classList.add('photo','show');
-    // strong centering guard
     imgwrap.style.display='flex'; imgwrap.style.alignItems='center'; imgwrap.style.justifyContent='center';
-    imgwrap.innerHTML = ''; // clear to avoid accidental flow shifts
+    imgwrap.innerHTML = '';
     imgwrap.appendChild(currentImg);
   }
-
   function loadWithFallback(url, fileName){
     return new Promise((resolve,reject)=>{
       const img = new Image(); img.decoding='async'; img.referrerPolicy='no-referrer';
@@ -370,9 +353,8 @@
       img.src = url;
     });
   }
-
   async function showIndex(i){
-    if(!items.length){ // show a neutral center message
+    if(!items.length){
       imgwrap.innerHTML = '<div style="opacity:.7">No photos. Select categories on Page 2–4.</div>';
       return;
     }
@@ -392,7 +374,6 @@
       currentLink = it.itemUrl || '#';
       openLinkHeader.onclick = ()=>{ if(currentLink && currentLink!=='#') window.open(currentLink,'_blank','noopener'); };
       downloadLink.href = it.imageUrl; downloadLink.download = (fileName||'image').replace(/^File:/,'');
-      // After each image, recompute stage height (guards against any layout jump)
       setStageHeight();
     }catch{ next(); }
   }
@@ -409,8 +390,8 @@
   document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
   document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
 
-  // ---------- Category UI (auto-apply with debounce)
-  const grids = [
+  // ---- Categories (single, non-duplicated declaration)
+  const catGrids = [
     { grid: document.getElementById('termGrid1'), input: document.getElementById('customTerm1'), add: document.getElementById('addTerm1') },
     { grid: document.getElementById('termGrid2'), input: document.getElementById('customTerm2'), add: document.getElementById('addTerm2') },
     { grid: document.getElementById('termGrid3'), input: document.getElementById('customTerm3'), add: document.getElementById('addTerm3') },
@@ -418,7 +399,7 @@
   ['clearSelBtn','clearSelBtn2','clearSelBtn3'].forEach(id=>{
     const b=document.getElementById(id);
     if(b) b.addEventListener('click', ()=>{
-      grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
+      catGrids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
       items=[]; currIndex=-1; countBadge.textContent='0';
       imgwrap.innerHTML = '<div style="opacity:.7">Selection cleared. Choose categories.</div>';
       stopAutoplay(); setStageHeight();
@@ -429,28 +410,25 @@
     const btn=document.createElement('button');
     btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label;
     btn.addEventListener('click', ()=>{
-      btn.classList.toggle('selected');
-      debouncedApply();
+      btn.classList.toggle('selected'); debouncedApply();
     });
     gridEl.appendChild(btn); return btn;
   }
 
-  // Presets (includes your previous sets + some renamed for reliability)
   const presets = [
     'Norwegian celebs','Beatles','US celebrities','Norwegian politicians','Norwegian CEO','US CEO','World CEO','Music producers',
     "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters','objects','household objects','clutter home objects','cars',
     'actors 2025','singers 2024','bands 2024','scientists','historical figures in science','historical leaders','historical pioneers','cars of 2010','cars of 2025'
   ];
   (function populate(){
-    const lists=[grids[0].grid,grids[1].grid,grids[2].grid];
+    const lists=[catGrids[0].grid,catGrids[1].grid,catGrids[2].grid];
     presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16),2); makeTermButton(p, lists[gi]); });
     // Auto-select “Norwegian celebs”
     Array.from(lists[0].children).forEach(b=>{ if(b.dataset.term==='Norwegian celebs') b.classList.add('selected'); });
   })();
 
-  // Add custom
   [0,1,2].forEach(i=>{
-    const g=grids[i]; if(!g) return;
+    const g=catGrids[i]; if(!g) return;
     g.add?.addEventListener('click', ()=>{
       const v=(g.input.value||'').trim(); if(!v) return;
       makeTermButton(v, g.grid).classList.add('selected');
@@ -458,7 +436,7 @@
     });
   });
 
-  // ---------- Data (Wikidata/Commons)
+  // Data query builders
   function H(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . BIND(?person AS ?entity) }`; }
   function F(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} BIND(?person AS ?entity) }`; }
   function T(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . BIND(?thing AS ?entity) }`; }
@@ -516,8 +494,7 @@
       const fixed = CATEGORY_BLOCKS[label] || CATEGORY_BLOCKS[label.replace(/celbs/i,'celebs')] || CATEGORY_BLOCKS[label.replace(/us celebs/i,'US celebrities')] || CATEGORY_BLOCKS[label.replace(/us ceo/i,'US CEO')];
       if (fixed) { blocks.push(fixed()); return; }
       const dyn = parseDynamicTerm(label); if(dyn){ blocks.push(dyn); return; }
-      // fallback: people with images
-      blocks.push(H([]));
+      blocks.push(H([])); // fallback: any person w/ image
     });
     const union = blocks.join('\nUNION\n');
     return `SELECT ?entity ?entityLabel ?image WHERE {
@@ -558,13 +535,12 @@
     }).filter(Boolean);
   }
 
-  // ---------- Apply selection (auto, debounced)
+  // Auto-apply with debounce
   let applyTimer=null;
   function debouncedApply(){ clearTimeout(applyTimer); applyTimer = setTimeout(applySelection, 400); }
-
   async function applySelection(){
     const chosen = [];
-    [0,1,2].forEach(i=> grids[i].grid.querySelectorAll('.termBtn.selected').forEach(b=> chosen.push(b.dataset.term||b.textContent.trim())));
+    [0,1,2].forEach(i=> catGrids[i].grid.querySelectorAll('.termBtn.selected').forEach(b=> chosen.push(b.dataset.term||b.textContent.trim())));
     if(!chosen.length){
       items=[]; currIndex=-1; countBadge.textContent='0';
       imgwrap.innerHTML = '<div style="opacity:.7">Select categories on Page 2–4.</div>';
@@ -573,7 +549,7 @@
     countBadge.textContent='Fetching…';
     try{
       let data = await fetchWDFromTerms(chosen);
-      data = data.sort(()=>Math.random()-0.5); // random only
+      data = data.sort(()=>Math.random()-0.5);
       items = data;
       countBadge.textContent = `${items.length} photos`;
       if(!items.length) return;
@@ -585,36 +561,21 @@
     }
   }
 
-  // ---------- Populate defaults & kick off
-  const grids = [
-    { grid: document.getElementById('termGrid1'), input: document.getElementById('customTerm1'), add: document.getElementById('addTerm1') },
-    { grid: document.getElementById('termGrid2'), input: document.getElementById('customTerm2'), add: document.getElementById('addTerm2') },
-    { grid: document.getElementById('termGrid3'), input: document.getElementById('customTerm3'), add: document.getElementById('addTerm3') },
-  ];
-
-  function makeTermButton(label, gridEl){
-    const btn=document.createElement('button');
-    btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label;
-    btn.addEventListener('click', ()=>{
-      btn.classList.toggle('selected'); debouncedApply();
-    });
-    gridEl.appendChild(btn); return btn;
-  }
-
-  const presets = [
-    'Norwegian celebs','Beatles','US celebrities','Norwegian politicians','Norwegian CEO','US CEO','World CEO','Music producers',
-    "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters','objects','household objects','clutter home objects','cars',
-    'actors 2025','singers 2024','bands 2024','scientists','historical figures in science','historical leaders','historical pioneers','cars of 2010','cars of 2025'
-  ];
+  // Populate defaults + auto-select Norwegian celebs
   (function populate(){
-    const lists=[grids[0].grid,grids[1].grid,grids[2].grid];
+    const lists=[catGrids[0].grid,catGrids[1].grid,catGrids[2].grid];
+    const presets = [
+      'Norwegian celebs','Beatles','US celebrities','Norwegian politicians','Norwegian CEO','US CEO','World CEO','Music producers',
+      "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters','objects','household objects','clutter home objects','cars',
+      'actors 2025','singers 2024','bands 2024','scientists','historical figures in science','historical leaders','historical pioneers','cars of 2010','cars of 2025'
+    ];
     presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16),2); makeTermButton(p, lists[gi]); });
-    // Auto-select “Norwegian celebs”
     Array.from(lists[0].children).forEach(b=>{ if(b.dataset.term==='Norwegian celebs') b.classList.add('selected'); });
   })();
 
+  // Add custom category
   [0,1,2].forEach(i=>{
-    const g=grids[i]; if(!g) return;
+    const g=catGrids[i]; if(!g) return;
     g.add?.addEventListener('click', ()=>{
       const v=(g.input.value||'').trim(); if(!v) return;
       makeTermButton(v, g.grid).classList.add('selected');
@@ -625,7 +586,7 @@
   // Initial apply
   debouncedApply();
 
-  // Simple swipe page nav
+  // Swipe page nav (mobile)
   let s=null;
   document.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; s={x:t.clientX,y:t.clientY}; }, {passive:true});
   document.addEventListener('touchend', e=>{
