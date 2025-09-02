@@ -1,82 +1,75 @@
-<!-- v23.1 -->
+<!-- v25 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Celeb Slideshow — Random Photo Fetcher (v23.1)</title>
-<meta name="description" content="Auto-fetch slideshow from Wikidata/Commons. Balanced mixing across selected categories, edit tiles, clear-all on every categories page, seamless swaps, centered images, left rail controls, timing in Settings." />
+<title>Celeb Slideshow — Random Photo Fetcher (v25)</title>
+<meta name="description" content="Swipe pages, auto-fetch from Wikidata/Commons, random mixing, edit tiles, clear-all, seamless centered images. No blue FAB; use the gear for Settings." />
 <style>
-  :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; }
+  :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; }
   *{box-sizing:border-box}
   html,body{height:100%}
-  body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto 1fr auto}
+  body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto auto 1fr auto}
 
-  header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:60; background:#0b0f14; border-bottom:1px solid rgba(255,255,255,.06)}
+  header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:100; background:#0b0f14; border-bottom:1px solid rgba(255,255,255,.06)}
   h1{font-size:16px; margin:0}
   .sp{flex:1}
   .iconBtn{height:36px; padding:0 12px; display:inline-grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer; color:#fff}
-
-  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; user-select:none; font-weight:700}
-  .btn.primary{border-color:rgba(96,165,250,.6); background:rgba(96,165,250,.15)}
-  .btn.ok{border-color:rgba(52,211,153,.6); background:rgba(52,211,153,.15)}
-  .btn.danger{border-color:rgba(248,113,113,.7); background:rgba(248,113,113,.18)}
-  .btn.playing{border-color:rgba(52,211,153,.9); background:rgba(52,211,153,.3)}
-
   .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
-  .tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:#0b0f14; overflow:auto}
+
+  .tabs{position:sticky; top:52px; z-index:99; display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:#0b0f14; overflow:auto}
   .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap}
   .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.6)}
   .page{display:none; height:100%}
   .page.active{display:block}
 
-  /* Stage layout */
-  .stageWrap{position:relative; height:calc(100vh - 200px); min-height:360px; display:grid; grid-template-columns:90px 1fr; gap:0; overflow:hidden}
-  .leftRail{position:relative; display:grid; grid-auto-rows:min-content; gap:12px; padding:12px 8px; background:linear-gradient(90deg, rgba(59,130,246,.25), rgba(59,130,246,.08)); border-right:1px solid rgba(255,255,255,.06); z-index:5}
-  .playButtonBig{height:140px; font-size:18px}
-  .railBtn{width:100%; height:56px}
-  #showThisName, #nextPhoto{height:132px; white-space:normal; line-height:1.1; padding:12px}
+  /* Layout: left rail + stage */
+  .stageWrap{position:relative; height:calc(100vh - 210px); min-height:360px; display:grid; grid-template-columns:88px 1fr; gap:0; overflow:hidden}
+  .leftRail{position:relative; display:grid; grid-auto-rows:min-content; gap:12px; padding:12px 8px; background:linear-gradient(90deg, rgba(59,130,246,.20), rgba(59,130,246,.06)); border-right:1px solid rgba(255,255,255,.06); z-index:5}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
+  .btn.primary{border-color:rgba(96,165,250,.6); background:rgba(96,165,250,.15)}
+  .btn.ok{border-color:rgba(52,211,153,.6); background:rgba(52,211,153,.15)}
+  .btn.danger{border-color:rgba(248,113,113,.7); background:rgba(248,113,113,.18)}
+  .btn.playing{border-color:rgba(52,211,153,.9); background:rgba(52,211,153,.3)}
+  .railBtnTall{height:120px; white-space:normal; line-height:1.1}
 
   .stage{position:relative; overflow:hidden; display:grid; place-items:center}
   .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center; overflow:hidden}
   img.photo{max-width:88vw; max-height:72vh; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6); opacity:0; transition:opacity .18s ease}
   img.photo.show{opacity:1}
 
+  /* Click zones live only within stage area (not covering tabs) */
   .hotzone{position:absolute; top:0; bottom:0; z-index:2}
-  .hotzone.left{left:90px; width:33.333%}
+  .hotzone.left{left:0; width:33.333%}
   .hotzone.right{right:0; width:66.667%}
 
-  .nameOverlay{position:absolute; left:50%; bottom:6%; transform:translateX(-50%); width:min(92%, 820px); background:linear-gradient(180deg, rgba(2,6,23,0), rgba(2,6,23,.92)); border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px 16px; text-align:center}
+  /* Name overlay (bottom ~30%) */
+  .nameOverlay{position:absolute; left:50%; bottom:6%; transform:translateX(-50%); width:min(92%, 820px);
+    background:linear-gradient(180deg, rgba(2,6,23,0), rgba(2,6,23,.92));
+    border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px 16px; text-align:center}
   .nameOverlay.collapsed{display:none}
   .title{font-size:22px; font-weight:800}
 
-  .linkTopRight{position:fixed; right:16px; top:64px; z-index:40; border-radius:10px; height:32px; padding:0 10px}
+  .linkTopRight{position:fixed; right:16px; top:100px; z-index:98; border-radius:10px; height:32px; padding:0 10px}
 
   .builder{padding:12px}
-  .hintRow{display:flex; gap:10px; align-items:center; margin-bottom:8px}
-  .hint{font-size:13px; color:var(--muted)}
+  .hint{font-size:13px; color:var(--muted); margin:6px 0 10px}
   .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
   .termBtn{position:relative; padding:12px 38px 12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
   .termBtn.selected{outline:2px solid var(--accent); background:#1f2937}
-  .termBtn.editing{outline:2px dashed var(--warn)}
+  .termBtn.editing{outline:2px dashed #fbbf24}
   .termEdit{position:absolute; right:8px; top:8px; width:24px; height:24px; border-radius:6px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); font-size:14px; line-height:1; cursor:pointer}
 
   .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
 
-  footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); border-top:1px solid rgba(255,255,255,.06)}
-  footer a{color:var(--ok); text-decoration:none}
-
-  /* Blue settings ball */
-  .fabSettings{position:fixed; right:16px; bottom:16px; width:56px; height:56px; border-radius:50%; display:grid; place-items:center; background:#3b82f6; color:#fff; font-size:22px; border:1px solid rgba(255,255,255,.2); box-shadow:0 10px 24px rgba(0,0,0,.35); z-index:80}
-
-  .toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none; z-index:90}
-  .debug{position:fixed; left:12px; bottom:60px; font-size:11px; color:#9fb7d6; opacity:.7; z-index:90}
+  footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:#a9b6c7; border-top:1px solid rgba(255,255,255,.06)}
+  footer a{color:#86efac; text-decoration:none}
 
   @media (max-width: 768px){
     .stageWrap{grid-template-columns:76px 1fr}
-    .hotzone.left{left:76px}
-    .playButtonBig{height:120px}
     img.photo{max-width:92vw; max-height:66vh}
+    .linkTopRight{top:96px}
   }
 </style>
 </head>
@@ -89,9 +82,7 @@
   <button class="iconBtn" id="nextTabBtn" title="Next page">➡️</button>
 </header>
 
-<button class="iconBtn linkTopRight" id="openLinkHeader" title="Open related page">🔗 Link</button>
-
-<nav class="tabs" role="tablist">
+<nav class="tabs" role="tablist" id="tabsBar">
   <button class="tab" role="tab" aria-controls="page1" aria-selected="true" id="tab1">Page 1: Slideshow</button>
   <button class="tab" role="tab" aria-controls="page2" aria-selected="false" id="tab2">Page 2: Categories A</button>
   <button class="tab" role="tab" aria-controls="page3" aria-selected="false" id="tab3">Page 3: Categories B</button>
@@ -99,15 +90,17 @@
   <button class="tab" role="tab" aria-controls="page5" aria-selected="false" id="tab5">Page 5: Settings</button>
 </nav>
 
+<button class="iconBtn linkTopRight" id="openLinkHeader" title="Open related page">🔗 Link</button>
+
 <main>
   <!-- PAGE 1 -->
   <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
     <div class="stageWrap">
-      <div class="leftRail" id="leftRail">
+      <div class="leftRail">
         <button class="btn" id="hideAllNames">Hide</button>
-        <button class="btn primary playButtonBig" id="cornerPlayStop">⏯️</button>
-        <button class="btn" id="showThisName">Show</button>
-        <button class="btn" id="nextPhoto">Next</button>
+        <button class="btn primary railBtnTall" id="cornerPlayStop">⏯️</button>
+        <button class="btn railBtnTall" id="showThisName">Show</button>
+        <button class="btn railBtnTall" id="nextPhoto">Next</button>
       </div>
       <div class="stage" id="stage">
         <div class="imgwrap" id="imgwrap"><div class="hint" style="opacity:.7">Fetching photos…</div></div>
@@ -121,7 +114,7 @@
   <!-- PAGE 2 -->
   <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
     <div class="builder">
-      <div class="hintRow"><div class="hint">Tap to select (blue). Triple-click to rename. Use Clear ALL to empty selection.</div></div>
+      <div class="hint">Tap to select (blue). Triple-click to rename (or long-press). Use <em>Clear ALL</em> to empty selection.</div>
       <div class="grid" id="termGrid1"></div>
       <div class="builderActions">
         <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
@@ -135,7 +128,7 @@
   <!-- PAGE 3 -->
   <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
     <div class="builder">
-      <div class="hintRow"><div class="hint">Tap to select (blue). Triple-click to rename. Use Clear ALL to empty selection.</div></div>
+      <div class="hint">Tap to select (blue). Triple-click to rename (or long-press). Use <em>Clear ALL</em> to empty selection.</div>
       <div class="grid" id="termGrid2"></div>
       <div class="builderActions">
         <input type="text" id="customTerm2" placeholder="Add a custom term…" />
@@ -149,7 +142,7 @@
   <!-- PAGE 4 -->
   <section id="page4" class="page" role="tabpanel" aria-labelledby="tab4">
     <div class="builder">
-      <div class="hintRow"><div class="hint">Tap to select (blue). Triple-click to rename. Use Clear ALL to empty selection.</div></div>
+      <div class="hint">Tap to select (blue). Triple-click to rename (or long-press). Use <em>Clear ALL</em> to empty selection.</div>
       <div class="grid" id="termGrid3"></div>
       <div class="builderActions">
         <input type="text" id="customTerm3" placeholder="Add a custom term…" />
@@ -163,10 +156,9 @@
   <!-- PAGE 5 (Settings) -->
   <section id="page5" class="page" role="tabpanel" aria-labelledby="tab5">
     <div class="builder" style="max-width:880px">
-      <div class="hintRow"><div class="hint">Timing controls. Tap ⚙️ (or the blue ball) again to exit Settings.</div></div>
-
+      <div class="hint">Timing controls. Tap the ⚙️ gear again to exit Settings.</div>
       <div style="display:grid; gap:14px; padding:8px; background:#0f172a; border:1px solid rgba(255,255,255,.08); border-radius:12px">
-        <div><strong>Slide speed</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
+        <div><strong>Slide speed</strong> <span class="hint">(±1s / ±0.2s steps)</span></div>
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
           <button class="btn" data-speed="-1">−1s</button>
           <button class="btn" data-speed="+1">＋1s</button>
@@ -175,7 +167,7 @@
           <div style="margin-left:auto"><span class="hint">Total:</span> <strong id="fineTotal">2.0s</strong></div>
         </div>
 
-        <div><strong>Name reveal delay</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
+        <div><strong>Name reveal delay</strong> <span class="hint">(±1s / ±0.2s steps)</span></div>
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
           <button class="btn" data-nd="-1">−1s</button>
           <button class="btn" data-nd="+1">＋1s</button>
@@ -198,23 +190,37 @@
 </main>
 
 <footer>
-  <div>PC: Right-side keys → <strong>Next</strong> (except P=play/pause). Left-side keys → <strong>Previous</strong> (except S=name). <kbd>Space</kbd>/<kbd>P</kbd>=play/pause. While renaming, hotkeys are disabled. Mobile: swipe left/right to switch pages.</div>
+  <div>PC: Right-side keys → <strong>Next</strong> (except P=play/pause). Left-side keys → <strong>Previous</strong> (except S=name). <kbd>Space</kbd>/<kbd>P</kbd>=play/pause. While renaming, hotkeys are disabled. Mobile: <strong>swipe left/right</strong> to switch pages.</div>
   <div class="sp"></div>
   <a href="#" id="downloadLink" title="Download current image">Download</a>
 </footer>
 
-<!-- Blue Settings FAB -->
-<button class="fabSettings" id="fabSettings" title="Open/Close Settings">⚙️</button>
-
-<div class="toast" id="toast"></div>
-<div class="debug" id="debug"></div>
+<div class="toast" id="toast" style="display:none"></div>
 
 <script>
 (function(){
-  // Elements
+  /* ===== Tabs + swipe pages ===== */
   const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
-  const setPage = (idx)=> tabs.forEach((t,i)=>{ const on=(i+1)===idx; t.page.classList.toggle('active', on); t.tab.setAttribute('aria-selected', String(on)); });
+  function setPage(idx){
+    tabs.forEach((t,i)=>{ const on=(i+1)===idx; t.page.classList.toggle('active', on); t.tab.setAttribute('aria-selected', String(on)); });
+  }
+  tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
+  document.getElementById('nextTabBtn').addEventListener('click', ()=>{
+    const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1;
+    setPage(idx%5 + 1);
+  });
+  document.getElementById('gearBtn').addEventListener('click', ()=>{
+    const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1;
+    setPage(idx===5 ? 1 : 5);
+  });
 
+  // swipe navigation (works on Samsung Browser). ignores while typing.
+  function isTyping(t){ const tag=(t?.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t?.isContentEditable; }
+  let swipeStart=null;
+  document.addEventListener('touchstart', (e)=>{ if(isTyping(e.target)) return; const t=e.changedTouches[0]; swipeStart={x:t.clientX,y:t.clientY}; }, {passive:true});
+  document.addEventListener('touchend', (e)=>{ if(!swipeStart || isTyping(e.target)) return; const t=e.changedTouches[0]; const dx=t.clientX-swipeStart.x; const dy=t.clientY-swipeStart.y; if(Math.abs(dx)>42 && Math.abs(dy)<60){ const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; if(dx<0 && idx<5) setPage(idx+1); if(dx>0 && idx>1) setPage(idx-1); } swipeStart=null; }, {passive:true});
+
+  /* ===== Slideshow elements ===== */
   const imgwrap = document.getElementById('imgwrap');
   const nameOverlay = document.getElementById('nameOverlay');
   const entityName = document.getElementById('entityName');
@@ -223,50 +229,36 @@
   const nextPhotoBtn = document.getElementById('nextPhoto');
   const cornerPlayStop = document.getElementById('cornerPlayStop');
   const openLinkHeader = document.getElementById('openLinkHeader');
-  const gearBtn = document.getElementById('gearBtn');
-  const fabSettings = document.getElementById('fabSettings');
   const countBadge = document.getElementById('countBadge');
   const downloadLink = document.getElementById('downloadLink');
   const toast = document.getElementById('toast');
 
-  // Category grids
+  /* ===== Category grids ===== */
   const catGrids = [
     { grid: document.getElementById('termGrid1'), input: document.getElementById('customTerm1'), add: document.getElementById('addTerm1'), clearAllBtn: document.getElementById('clearAllSelBtn1') },
     { grid: document.getElementById('termGrid2'), input: document.getElementById('customTerm2'), add: document.getElementById('addTerm2'), clearAllBtn: document.getElementById('clearAllSelBtn2') },
     { grid: document.getElementById('termGrid3'), input: document.getElementById('customTerm3'), add: document.getElementById('addTerm3'), clearAllBtn: document.getElementById('clearAllSelBtn3') },
   ];
 
-  // State
-  let items = []; let timer=null; let autoplay=false; let currIndex=-1; let lastKeyTime=0;
+  /* ===== State ===== */
+  let items = []; let timer=null; let autoplay=false; let currIndex=-1;
   let globalHideNames=false; let perSlideReveal=false; let currentLink='#';
   let slideSeconds = 2.0; let nameDelay = 500;
 
-  // Tabs + header buttons
-  tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
-  document.getElementById('nextTabBtn').addEventListener('click', ()=>{
-    const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1;
-    setPage(idx%5 + 1);
-  });
+  function showToast(msg, ms=1200){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=> toast.style.display='none', ms); }
+  function clampStep(x){ return Math.round(x*5)/5; } // 0.2s steps
 
-  function toggleSettings(){
-    const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1;
-    setPage(idx===5 ? 1 : 5);
-  }
-  gearBtn.addEventListener('click', toggleSettings);
-  fabSettings.addEventListener('click', toggleSettings);
-
-  // Build categories
+  /* ===== Build & manage category tiles ===== */
   function makeTermButton(label, gridEl){
-    const btn = document.createElement('button');
+    const btn=document.createElement('button');
     btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label;
 
-    // edit icon
-    const edit = document.createElement('span');
-    edit.className='termEdit'; edit.title='Rename'; edit.textContent='✏️';
+    const edit=document.createElement('span');
+    edit.className='termEdit'; edit.textContent='✏️'; edit.title='Rename';
     edit.addEventListener('click', (e)=>{ e.stopPropagation(); startEdit(btn); });
     btn.appendChild(edit);
 
-    // triple-click to rename
+    // triple-click / select toggle
     let clicks=0, cTimer=null;
     btn.addEventListener('click', ()=>{
       clicks++;
@@ -275,7 +267,7 @@
       cTimer=setTimeout(()=>{ clicks=0; btn.classList.toggle('selected'); debouncedApply(); }, 220);
     });
 
-    // long-press to rename (mobile)
+    // long-press rename (mobile)
     let pTimer=null;
     btn.addEventListener('touchstart', ()=>{ pTimer=setTimeout(()=> startEdit(btn), 600); }, {passive:true});
     ['touchend','touchmove','touchcancel'].forEach(ev=> btn.addEventListener(ev, ()=> clearTimeout(pTimer), {passive:true}));
@@ -312,7 +304,6 @@
         else { makeTermButton(t, g.grid); }
         g.input.value='';
       }; }
-      // Clear ALL on every page
       g.clearAllBtn.addEventListener('click', ()=>{
         catGrids.forEach(pg=> pg.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
         items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay();
@@ -334,13 +325,12 @@
     ensureMinTiles(); attachAddHandlers();
   }
 
-  // ===== Wikidata query builder (unified entity)
+  /* ===== Wikidata queries ===== */
   function H(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . BIND(?person AS ?entity) }`; }
   function F(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} BIND(?person AS ?entity) }`; }
   function T(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . BIND(?thing AS ?entity) }`; }
 
   const CATEGORY_BLOCKS = {
-    'Beatles': () => H([ 'wdt:P463 wd:Q1299 ;' ]),
     'Norwegian celebs': () => H([ 'wdt:P27 wd:Q20 ;' ]),
     'US celebs': () => H([ 'wdt:P27 wd:Q30 ;' ]),
     'Norwegian politicians': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P106 wd:Q82955 ;' ]),
@@ -375,7 +365,7 @@
     const t = term.toLowerCase().trim();
     const m = t.match(/(\d{4})/);
     if(/\bcars?\b/.test(t) && m){
-      const y = +m[1];
+      const y=+m[1];
       return `{ ?thing wdt:P18 ?image . { ?thing wdt:P31 wd:Q3231690 . OPTIONAL { ?thing wdt:P571 ?inception . } FILTER(BOUND(?inception) && year(?inception) = ${y}) } BIND(?thing AS ?entity) }`;
     }
     if(/\bobjects?\b/.test(t)) return CATEGORY_BLOCKS['objects']();
@@ -389,7 +379,7 @@
     const endpoint='https://query.wikidata.org/sparql';
     const body = new URLSearchParams(); body.set('query', q);
     const res = await fetch(endpoint, { method:'POST', headers:{'Accept':'application/sparql-results+json','Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, body });
-    if(!res.ok){ const txt=await res.text().catch(()=> ''); throw new Error('WDQS '+res.status+' '+txt.slice(0,120)); }
+    if(!res.ok){ const t=await res.text().catch(()=> ''); throw new Error('WDQS '+res.status+' '+t.slice(0,120)); }
     return res.json();
   }
 
@@ -406,7 +396,7 @@
     } LIMIT 120`;
 
     const data = await sparqlQuery(q);
-    const rows = data.results.bindings || [];
+    const rows = (data.results && data.results.bindings) || [];
     return rows.map(r=>{
       const name = r.entityLabel?.value || 'Untitled';
       let raw = r.image?.value || '';
@@ -428,7 +418,7 @@
 
   function interleaveBuckets(buckets){
     const shuffled = buckets.map(arr => arr.sort(()=>Math.random()-0.5));
-    const out=[]; let added=true; let i=0;
+    const out=[]; let i=0; let added=true;
     while(added){ added=false; for(let b=0;b<shuffled.length;b++){ const pick=shuffled[b][i]; if(pick){ out.push(pick); added=true; } } i++; }
     return out.sort(()=>Math.random()-0.5);
   }
@@ -439,13 +429,12 @@
       const res=await fetch(url); const data=await res.json();
       const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null;
       const info = page?.imageinfo?.[0];
-      const meta = info?.extmetadata || {};
       const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/'+encodeURIComponent(fileTitle));
       return { filePageUrl };
     }catch(_){ return { filePageUrl:'#' }; }
   }
 
-  // Slideshow
+  /* ===== Slideshow ===== */
   let currentImg=null;
   function swapIn(img){
     const prev=currentImg;
@@ -477,8 +466,17 @@
   function startAutoplay(){ if(timer) clearInterval(timer); timer=setInterval(next, Math.max(0.1,slideSeconds)*1000); autoplay=true; cornerPlayStop.classList.add('playing'); }
   function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.classList.remove('playing'); }
 
+  // Click zones
+  document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
+  document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
+  nextPhotoBtn.addEventListener('click', ()=>{ stopAutoplay(); next(); });
+  cornerPlayStop.addEventListener('click', ()=>{ if(autoplay) stopAutoplay(); else startAutoplay(); });
+  hideAllNamesBtn.addEventListener('click', ()=>{ globalHideNames=!globalHideNames; nameOverlay.classList.toggle('collapsed', globalHideNames); hideAllNamesBtn.textContent=globalHideNames?'Show':'Hide'; });
+  showThisNameBtn.addEventListener('click', ()=>{ if(globalHideNames){ perSlideReveal=true; nameOverlay.classList.remove('collapsed'); } });
+  openLinkHeader.addEventListener('click', ()=>{ if(currentLink && currentLink!=='#') window.open(currentLink, '_blank', 'noopener'); });
+
   // Hotkeys
-  function isTyping(t){ const tag=(t?.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t?.isContentEditable; }
+  let lastKeyTime=0;
   document.addEventListener('keydown', (e)=>{ if(isTyping(e.target)) return;
     const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now;
     const key=(e.key||'').toLowerCase();
@@ -488,17 +486,7 @@
     if(key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; }
   });
 
-  // Stage clicks
-  document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
-  document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
-  nextPhotoBtn.addEventListener('click', ()=>{ stopAutoplay(); next(); });
-  cornerPlayStop.addEventListener('click', ()=>{ if(autoplay) stopAutoplay(); else startAutoplay(); });
-  hideAllNamesBtn.addEventListener('click', ()=>{ globalHideNames=!globalHideNames; nameOverlay.classList.toggle('collapsed', globalHideNames); hideAllNamesBtn.textContent=globalHideNames?'Show':'Hide'; });
-  showThisNameBtn.addEventListener('click', ()=>{ if(globalHideNames){ perSlideReveal=true; nameOverlay.classList.remove('collapsed'); } });
-  openLinkHeader.addEventListener('click', ()=>{ if(currentLink && currentLink!=='#') window.open(currentLink, '_blank', 'noopener'); });
-
-  // Settings (slide speed & name delay)
-  function clampStep(x){ return Math.round(x*5)/5; } // 0.2s steps
+  /* ===== Settings (Page 5) ===== */
   function updateSpeedDisplay(){ document.getElementById('fineTotal').textContent = (Math.max(0.1,slideSeconds)).toFixed(1)+'s'; }
   function updateNameDisplay(){ document.getElementById('nameTotal').textContent = (nameDelay/1000).toFixed(1)+'s'; }
   document.querySelectorAll('[data-speed]').forEach(b=> b.addEventListener('click', ()=>{
@@ -509,22 +497,22 @@
   }));
   updateSpeedDisplay(); updateNameDisplay();
 
-  // Export/Import/Reset
+  /* ===== Export/Import/Reset ===== */
   const exportBtn = document.getElementById('exportBtn');
   const importBtn = document.getElementById('importBtn');
   const resetBtn = document.getElementById('resetBtn');
   const jsonBox = document.getElementById('jsonBox');
 
   function gatherTiles(){ const tiles=[]; catGrids.forEach(g=> g.grid.querySelectorAll('.termBtn').forEach(b=> tiles.push({label:b.dataset.term||b.textContent.trim(), selected:b.classList.contains('selected')}))); return tiles; }
-  function renderFromTiles(tiles){ catGrids.forEach(g=> g.grid.innerHTML=''); tiles.forEach((t,i)=>{ const gi=Math.min(Math.floor(i/16), catGrids.length-1); const b=makeTermButton(t.label, catGrids[gi].grid); if(t.selected) b.classList.add('selected'); }); ensureMinTiles(); attachAddHandlers(); }
-  exportBtn.addEventListener('click', ()=>{ jsonBox.value = JSON.stringify({version:4, tiles:gatherTiles()}, null, 2); toast.textContent='Exported categories.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1000); });
-  importBtn.addEventListener('click', ()=>{ try{ const obj=JSON.parse(jsonBox.value||'{}'); if(!Array.isArray(obj.tiles)) throw new Error('Invalid JSON'); renderFromTiles(obj.tiles.map(x=>({label:x.label, selected:!!x.selected}))); debouncedApply(); }catch(e){ toast.textContent='Import failed: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1600); } });
-  resetBtn.addEventListener('click', ()=>{ populateDefaults(); debouncedApply(); });
+  function renderFromTiles(tiles){ catGrids.forEach(g=> g.grid.innerHTML=''); tiles.forEach((t,i)=>{ const gi=Math.min(Math.floor(i/16), catGrids.length-1); const b=makeTermButton(t.label, catGrids[gi].grid); if(t.selected) b.classList.add('selected'); }); ensureMinTiles(); attachAddHandlers(); debouncedApply(); }
+  exportBtn?.addEventListener('click', ()=>{ jsonBox.value = JSON.stringify({version:4, tiles:gatherTiles()}, null, 2); showToast('Exported categories.'); });
+  importBtn?.addEventListener('click', ()=>{ try{ const obj=JSON.parse(jsonBox.value||'{}'); if(!Array.isArray(obj.tiles)) throw new Error('Invalid JSON'); renderFromTiles(obj.tiles.map(x=>({label:x.label, selected:!!x.selected}))); }catch(e){ showToast('Import failed: '+e.message, 1600); } });
+  resetBtn?.addEventListener('click', ()=>{ populateDefaults(); debouncedApply(); });
 
-  // Apply selection with fair mixing
+  /* ===== Apply selection with mixing ===== */
   async function applySelection(){
     const chosen=[]; catGrids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=>{ const t=b.dataset.term||b.textContent.trim(); if(t) chosen.push(t); }));
-    if(!chosen.length){ items=[]; currIndex=-1; countBadge.textContent='0'; imgwrap.innerHTML='<div class="hint" style="opacity:.7">Select categories on Pages 2–4.</div>'; return; }
+    if(!chosen.length){ items=[]; currIndex=-1; countBadge.textContent='0'; imgwrap.innerHTML='<div class="hint" style="opacity:.7">Select categories on Pages 2–4, or swipe right for Settings.</div>'; return; }
     countBadge.textContent='Fetching…';
     try{
       const MAX_PAR = 3;
@@ -540,19 +528,18 @@
       if(!items.length) return;
       setPage(1); stopAutoplay(); showIndex(0); startAutoplay();
     }catch(e){
-      countBadge.textContent='0'; toast.textContent='Fetch error: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1800);
+      countBadge.textContent='0'; showToast('Fetch error: '+e.message, 1800);
     }
   }
   const debouncedApply = (()=>{ let t=null; return ()=>{ clearTimeout(t); t=setTimeout(applySelection, 180); }; })();
 
-  // Init
+  /* ===== Init ===== */
   populateDefaults();
-  // Auto-select Norwegian celebs on first run
-  const auto = Array.from(catGrids[0].grid.querySelectorAll('.termBtn')).find(b=>/Norwegian celebs/i.test(b.dataset.term||b.textContent));
-  if(auto) auto.classList.add('selected');
-  applySelection();
+  // Auto-select "Norwegian celebs" and load
+  const autoBtn = Array.from(catGrids[0].grid.querySelectorAll('.termBtn')).find(b=>/Norwegian celebs/i.test(b.dataset.term||b.textContent));
+  if(autoBtn) autoBtn.classList.add('selected');
+  setPage(1); applySelection();
 })();
 </script>
 </body>
 </html>
-
