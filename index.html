@@ -1,11 +1,11 @@
-<!-- v19 -->
+<!-- v20 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Celeb Slideshow — Random Photo Fetcher (v19)</title>
-<meta name="description" content="v19: photos always centered, no blue FAB, timing in Settings, categories auto-apply (random only), Clear on pages 2–4, seamless swaps." />
+<title>Celeb Slideshow — Random Photo Fetcher (v20)</title>
+<meta name="description" content="v20: settings toggles back, photos always centered (even after Clear), categories auto-apply, random only." />
 <style>
   :root { --bg:#0b0f14; --rail:#0d1420; --fg:#e5eef7; --muted:#93a3b8; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; }
   *{box-sizing:border-box}
@@ -15,6 +15,22 @@
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial;
     display:grid; grid-template-rows:auto auto 1fr auto; min-height:100vh;
   }
+
+  /* Left rail (fixed) */
+  .leftRail{
+    position:fixed; left:0; top:0; bottom:0; width:74px; background:linear-gradient(180deg,var(--rail),rgba(8,12,20,.9));
+    border-right:1px solid rgba(255,255,255,.06); z-index:65; display:grid; grid-template-rows:1fr auto auto 1fr; gap:10px; place-items:center; padding-bottom:12px;
+  }
+  .leftRail::before{content:''; position:absolute; top:0; bottom:0; left:0; width:6px; background:rgba(255,255,255,.06)}
+  .leftRail.playing::before{background:var(--ok)}
+  .railBtn{width:64px; min-height:44px; display:grid; place-items:center; padding:8px; text-align:center}
+  .playButtonBig{width:64px; height:64px; border-radius:16px; font-size:20px; display:grid; place-items:center}
+  #showThisName{ height:132px; } /* 3× taller */
+
+  /* Shift whole UI so content never sits under the rail */
+  header, nav.tabs, main, footer { padding-left:74px }
+  @media (max-width:768px){ header, nav.tabs, main, footer { padding-left:64px } }
+
   header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:50; background:rgba(2,6,23,.6); backdrop-filter:blur(8px) saturate(1.1); border-bottom:1px solid rgba(255,255,255,.06)}
   h1{font-size:16px; margin:0}
   .sp{flex:1}
@@ -35,25 +51,13 @@
   .page{display:none; height:100%; overflow:auto}
   .page.active{display:block}
 
-  /* Left rail */
-  .leftRail{
-    position:fixed; left:0; top:0; bottom:0; width:74px; background:linear-gradient(180deg,var(--rail),rgba(8,12,20,.9));
-    border-right:1px solid rgba(255,255,255,.06); z-index:65; display:grid; grid-template-rows:1fr auto auto 1fr; gap:10px; place-items:center; padding-bottom:12px;
-  }
-  .leftRail::before{content:''; position:absolute; top:0; bottom:0; left:0; width:6px; background:rgba(255,255,255,.06)}
-  .leftRail.playing::before{background:var(--ok)}
-  .railBtn{width:64px; min-height:44px; display:grid; place-items:center; padding:8px; text-align:center}
-  .playButtonBig{width:64px; height:64px; border-radius:16px; font-size:20px; display:grid; place-items:center}
-  #showThisName{ height:132px; } /* 3× taller */
-
-  /* Stage: always centered */
+  /* Stage: strict center always */
   .stage{
-    position:relative; margin-left:74px; /* reserve rail space */
+    position:relative;
     display:flex; align-items:center; justify-content:center;
-    height:calc(100vh - (56px + 48px + 52px)); /* header + tabs ~ + footer approx; js updates exact */
+    height:calc(100vh - (56px + 48px + 52px)); /* header + tabs + footer approx */
     overflow:hidden;
   }
-  @media (max-width:768px){ .stage{ margin-left:64px } }
 
   .imgwrap{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
   img.photo{
@@ -65,13 +69,11 @@
 
   /* Tap zones */
   .hotzone{position:absolute; top:0; bottom:0; z-index:10}
-  .hotzone.left{left:74px; width:calc(33.333% - 74px)}
+  .hotzone.left{left:0; width:33.333%}
   .hotzone.right{right:0; width:66.667%}
-  @media (max-width:768px){ .hotzone.left{left:64px; width:calc(33.333% - 64px)} }
 
   /* Name overlay ~30% bottom of photo area */
-  .nameArea{position:absolute; left:74px; right:0; bottom:0; height:30%; display:grid; place-items:center; padding:8px; z-index:40}
-  @media (max-width:768px){ .nameArea{ left:64px } }
+  .nameArea{position:absolute; left:0; right:0; bottom:0; height:30%; display:grid; place-items:center; padding:8px; z-index:40}
   .nameBackdrop{position:absolute; inset:0; background:linear-gradient(180deg, rgba(2,6,23,0) 0%, rgba(2,6,23,.75) 35%, rgba(2,6,23,.92) 100%)}
   .nameLayer{position:relative; width:min(92%, 900px); display:grid; gap:10px; justify-items:center}
   .nameBar{width:100%; background:transparent; border:none; padding:0; text-align:center}
@@ -100,6 +102,13 @@
 </style>
 </head>
 <body>
+  <!-- Fixed left rail -->
+  <div class="leftRail" id="leftRail">
+    <button class="btn railBtn" id="hideAllNames" title="Hide/Show names">Hide</button>
+    <button class="btn primary playButtonBig" id="cornerPlayStop" title="Play / Stop">⏯️</button>
+    <button class="btn railBtn" id="showThisName" title="Show this photo’s name">Show</button>
+  </div>
+
 <header>
   <h1>🎞️ Celeb Slideshow</h1>
   <span class="badge" id="countBadge">—</span>
@@ -120,14 +129,8 @@
 <main id="mainArea">
   <!-- Page 1 -->
   <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
-    <div class="leftRail" id="leftRail">
-      <button class="btn railBtn" id="hideAllNames" title="Hide/Show names">Hide</button>
-      <button class="btn primary playButtonBig" id="cornerPlayStop" title="Play / Stop">⏯️</button>
-      <button class="btn railBtn" id="showThisName" title="Show this photo’s name">Show</button>
-    </div>
-
     <div class="stage" id="stage">
-      <div class="imgwrap" id="imgwrap"></div>
+      <div class="imgwrap" id="imgwrap"><!-- centered image lives here --></div>
       <div class="hotzone left"  id="zoneLeft"  title="Previous"></div>
       <div class="hotzone right" id="zoneRight" title="Next"></div>
 
@@ -236,7 +239,7 @@
 
 <script>
 (function(){
-  // ---------- Layout helpers: keep stage perfectly centered
+  // ---------- Stage sizing (keeps center correct)
   const header = document.querySelector('header');
   const tabsRow = document.getElementById('tabsRow');
   const footer = document.querySelector('footer');
@@ -250,16 +253,25 @@
   addEventListener('orientationchange', setStageHeight);
   setStageHeight();
 
-  // ---------- Tabs
+  // ---------- Tabs + Settings toggle
   const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
+  let lastNonSettings = 1;
+  function activeIndex(){ return tabs.findIndex(t=> t.page.classList.contains('active')) + 1; }
   function setPage(idx){
     tabs.forEach((t,i)=>{ const on=(i+1)===idx; t.page.classList.toggle('active', on); t.tab.setAttribute('aria-selected', String(on)); });
+    if(idx!==5) lastNonSettings = idx;
     setStageHeight();
   }
   tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
-  document.getElementById('gearBtn').addEventListener('click', ()=> setPage(5));
+
+  const gearBtn = document.getElementById('gearBtn');
+  gearBtn.addEventListener('click', ()=>{
+    const current = activeIndex();
+    if(current===5){ setPage(lastNonSettings || 1); } else { lastNonSettings = current; setPage(5); }
+  });
+
   document.getElementById('nextTabBtn').addEventListener('click', ()=>{
-    const active = tabs.findIndex(t=> t.page.classList.contains('active')) + 1;
+    const active = activeIndex();
     setPage(active%5 + 1);
   });
 
@@ -288,7 +300,7 @@
     const s = window.__slideSeconds;
     const sec = Math.floor(s);
     const frac = roundStep(s-sec);
-    document.getElementById('fineSec').textContent = (sec+frac).toFixed(1); // show combined nicely
+    document.getElementById('fineSec').textContent = (sec+frac).toFixed(1);
     document.getElementById('fineMs').textContent = frac.toFixed(1);
     document.getElementById('fineTotal').textContent = (sec+frac).toFixed(1)+'s';
   }
@@ -300,10 +312,7 @@
   }
   updateSpeedDisplay();
   document.querySelectorAll('#fineRow .quickBtn, #fineRow + .stepper .quickBtn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const delta = Number(btn.dataset.delta);
-      setSlide((window.__slideSeconds||0) + delta);
-    });
+    btn.addEventListener('click', ()=>{ const delta = Number(btn.dataset.delta); setSlide((window.__slideSeconds||0) + delta); });
   });
 
   function updateNameDisplay(){
@@ -321,10 +330,7 @@
   }
   updateNameDisplay();
   document.querySelectorAll('#nameFineRow .quickBtn, #nameFineRow + .stepper .quickBtn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const delta = Number(btn.dataset.delta);
-      setNameDelaySeconds((nameDelay/1000) + delta);
-    });
+    btn.addEventListener('click', ()=>{ const delta = Number(btn.dataset.delta); setNameDelaySeconds((nameDelay/1000) + delta); });
   });
 
   // ---------- Keyboard
@@ -344,11 +350,10 @@
   function swapIn(img){
     const prev = currentImg;
     currentImg = img; currentImg.classList.add('photo','show');
+    // strong centering guard
+    imgwrap.style.display='flex'; imgwrap.style.alignItems='center'; imgwrap.style.justifyContent='center';
+    imgwrap.innerHTML = ''; // clear to avoid accidental flow shifts
     imgwrap.appendChild(currentImg);
-    if(prev){
-      prev.addEventListener('transitionend', ()=>{ try{ imgwrap.removeChild(prev); }catch{} }, {once:true});
-      prev.classList.remove('show');
-    }
   }
 
   function loadWithFallback(url, fileName){
@@ -367,7 +372,10 @@
   }
 
   async function showIndex(i){
-    if(!items.length) return;
+    if(!items.length){ // show a neutral center message
+      imgwrap.innerHTML = '<div style="opacity:.7">No photos. Select categories on Page 2–4.</div>';
+      return;
+    }
     currIndex = (i + items.length) % items.length;
     const it = items[currIndex];
     try{
@@ -384,6 +392,8 @@
       currentLink = it.itemUrl || '#';
       openLinkHeader.onclick = ()=>{ if(currentLink && currentLink!=='#') window.open(currentLink,'_blank','noopener'); };
       downloadLink.href = it.imageUrl; downloadLink.download = (fileName||'image').replace(/^File:/,'');
+      // After each image, recompute stage height (guards against any layout jump)
+      setStageHeight();
     }catch{ next(); }
   }
   function next(){ showIndex((currIndex + 1) % items.length); }
@@ -407,7 +417,12 @@
   ];
   ['clearSelBtn','clearSelBtn2','clearSelBtn3'].forEach(id=>{
     const b=document.getElementById(id);
-    if(b) b.addEventListener('click', ()=>{ clearSelection(); debouncedApply(); });
+    if(b) b.addEventListener('click', ()=>{
+      grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
+      items=[]; currIndex=-1; countBadge.textContent='0';
+      imgwrap.innerHTML = '<div style="opacity:.7">Selection cleared. Choose categories.</div>';
+      stopAutoplay(); setStageHeight();
+    });
   });
 
   function makeTermButton(label, gridEl){
@@ -419,14 +434,8 @@
     });
     gridEl.appendChild(btn); return btn;
   }
-  function clearSelection(){
-    grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
-    items=[]; currIndex=-1; countBadge.textContent='0';
-  }
-  function selectedTerms(){
-    const out=[]; grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> out.push(b.dataset.term||b.textContent.trim())));
-    return out;
-  }
+
+  // Presets (includes your previous sets + some renamed for reliability)
   const presets = [
     'Norwegian celebs','Beatles','US celebrities','Norwegian politicians','Norwegian CEO','US CEO','World CEO','Music producers',
     "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters','objects','household objects','clutter home objects','cars',
@@ -438,15 +447,15 @@
     // Auto-select “Norwegian celebs”
     Array.from(lists[0].children).forEach(b=>{ if(b.dataset.term==='Norwegian celebs') b.classList.add('selected'); });
   })();
+
   // Add custom
-  grids.forEach(g=>{
-    if(g.add && g.input && g.grid){
-      g.add.addEventListener('click', ()=>{
-        const v=(g.input.value||'').trim(); if(!v) return;
-        makeTermButton(v, g.grid).classList.add('selected');
-        g.input.value=''; debouncedApply();
-      });
-    }
+  [0,1,2].forEach(i=>{
+    const g=grids[i]; if(!g) return;
+    g.add?.addEventListener('click', ()=>{
+      const v=(g.input.value||'').trim(); if(!v) return;
+      makeTermButton(v, g.grid).classList.add('selected');
+      g.input.value=''; debouncedApply();
+    });
   });
 
   // ---------- Data (Wikidata/Commons)
@@ -479,11 +488,11 @@
     'cars': () => T([ ' { ?thing wdt:P31 wd:Q1420 . } UNION { ?thing wdt:P31 wd:Q3231690 . } ' ]),
     'actors 2025': () => H([ 'wdt:P106 wd:Q33999 ;' ]),
     'singers 2024': () => H([ 'wdt:P106 wd:Q177220 ;' ]),
-    'bands 2024': () => T([ ' ?thing wdt:P31/wdt:P279* wd:Q215380 . ' ]), /* musical group */
+    'bands 2024': () => T([ ' ?thing wdt:P31/wdt:P279* wd:Q215380 . ' ]),
     'scientists': () => H([ 'wdt:P106 wd:Q901 ; ' ]),
     'historical figures in science': () => H([ 'wdt:P106 wd:Q901 ; ' ]),
-    'historical leaders': () => H([ 'wdt:P106 wd:Q82955 ; ' ]), /* using politician as proxy */
-    'historical pioneers': () => H([ 'wdt:P106 wd:Q81096 ; ' ])  /* inventor as proxy */
+    'historical leaders': () => H([ 'wdt:P106 wd:Q82955 ; ' ]),
+    'historical pioneers': () => H([ 'wdt:P106 wd:Q81096 ; ' ])
   };
 
   function parseDynamicTerm(term){
@@ -549,24 +558,22 @@
     }).filter(Boolean);
   }
 
-  // ---------- Apply selection (auto)
+  // ---------- Apply selection (auto, debounced)
   let applyTimer=null;
-  function debouncedApply(){
-    clearTimeout(applyTimer);
-    applyTimer = setTimeout(applySelection, 400); // small debounce to avoid hammering WDQS
-  }
+  function debouncedApply(){ clearTimeout(applyTimer); applyTimer = setTimeout(applySelection, 400); }
 
   async function applySelection(){
-    const chosen = selectedTerms();
+    const chosen = [];
+    [0,1,2].forEach(i=> grids[i].grid.querySelectorAll('.termBtn.selected').forEach(b=> chosen.push(b.dataset.term||b.textContent.trim())));
     if(!chosen.length){
       items=[]; currIndex=-1; countBadge.textContent='0';
+      imgwrap.innerHTML = '<div style="opacity:.7">Select categories on Page 2–4.</div>';
       return;
     }
     countBadge.textContent='Fetching…';
     try{
       let data = await fetchWDFromTerms(chosen);
-      // random order only
-      data = data.sort(()=>Math.random()-0.5);
+      data = data.sort(()=>Math.random()-0.5); // random only
       items = data;
       countBadge.textContent = `${items.length} photos`;
       if(!items.length) return;
@@ -579,20 +586,55 @@
   }
 
   // ---------- Populate defaults & kick off
-  // Build grids are already populated above (presets)
-  // Auto-apply initial selection (Norwegian celebs)
+  const grids = [
+    { grid: document.getElementById('termGrid1'), input: document.getElementById('customTerm1'), add: document.getElementById('addTerm1') },
+    { grid: document.getElementById('termGrid2'), input: document.getElementById('customTerm2'), add: document.getElementById('addTerm2') },
+    { grid: document.getElementById('termGrid3'), input: document.getElementById('customTerm3'), add: document.getElementById('addTerm3') },
+  ];
+
+  function makeTermButton(label, gridEl){
+    const btn=document.createElement('button');
+    btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label;
+    btn.addEventListener('click', ()=>{
+      btn.classList.toggle('selected'); debouncedApply();
+    });
+    gridEl.appendChild(btn); return btn;
+  }
+
+  const presets = [
+    'Norwegian celebs','Beatles','US celebrities','Norwegian politicians','Norwegian CEO','US CEO','World CEO','Music producers',
+    "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters','objects','household objects','clutter home objects','cars',
+    'actors 2025','singers 2024','bands 2024','scientists','historical figures in science','historical leaders','historical pioneers','cars of 2010','cars of 2025'
+  ];
+  (function populate(){
+    const lists=[grids[0].grid,grids[1].grid,grids[2].grid];
+    presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16),2); makeTermButton(p, lists[gi]); });
+    // Auto-select “Norwegian celebs”
+    Array.from(lists[0].children).forEach(b=>{ if(b.dataset.term==='Norwegian celebs') b.classList.add('selected'); });
+  })();
+
+  [0,1,2].forEach(i=>{
+    const g=grids[i]; if(!g) return;
+    g.add?.addEventListener('click', ()=>{
+      const v=(g.input.value||'').trim(); if(!v) return;
+      makeTermButton(v, g.grid).classList.add('selected');
+      g.input.value=''; debouncedApply();
+    });
+  });
+
+  // Initial apply
   debouncedApply();
 
-  // ---------- Simple swipe page nav
+  // Simple swipe page nav
   let s=null;
   document.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; s={x:t.clientX,y:t.clientY}; }, {passive:true});
   document.addEventListener('touchend', e=>{
     if(!s) return; const t=e.changedTouches[0];
     const dx=t.clientX-s.x, dy=t.clientY-s.y;
     if(Math.abs(dx)>40 && Math.abs(dy)<60){
-      const active = tabs.findIndex(t=> t.page.classList.contains('active')) + 1;
-      if(dx<0 && active<5) setPage(active+1);
-      if(dx>0 && active>1) setPage(active-1);
+      const idx = activeIndex();
+      if(dx<0 && idx<5) setPage(idx+1);
+      if(dx>0 && idx>1) setPage(idx-1);
     }
     s=null;
   }, {passive:true});
