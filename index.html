@@ -1,11 +1,11 @@
-<!-- v25 -->
+<!-- v26 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Celeb Slideshow — Random Photo Fetcher (v25)</title>
-<meta name="description" content="Swipe pages, auto-fetch from Wikidata/Commons, random mixing, edit tiles, clear-all, seamless centered images. No blue FAB; use the gear for Settings." />
+<title>Celeb Slideshow — Random Photo Fetcher (v26)</title>
+<meta name="description" content="Swipe pages, auto-fetch from Wikidata/Commons, random mixing, edit tiles (triple click), clear-all, seamless centered images. Arrow keys for page nav, Alt+C = Clear ALL." />
 <style>
   :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; }
   *{box-sizing:border-box}
@@ -56,10 +56,9 @@
   .builder{padding:12px}
   .hint{font-size:13px; color:var(--muted); margin:6px 0 10px}
   .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
-  .termBtn{position:relative; padding:12px 38px 12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
+  .termBtn{padding:12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
   .termBtn.selected{outline:2px solid var(--accent); background:#1f2937}
   .termBtn.editing{outline:2px dashed #fbbf24}
-  .termEdit{position:absolute; right:8px; top:8px; width:24px; height:24px; border-radius:6px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); font-size:14px; line-height:1; cursor:pointer}
 
   .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
 
@@ -104,8 +103,8 @@
       </div>
       <div class="stage" id="stage">
         <div class="imgwrap" id="imgwrap"><div class="hint" style="opacity:.7">Fetching photos…</div></div>
-        <div class="hotzone left" id="zoneLeft" title="Previous"></div>
-        <div class="hotzone right" id="zoneRight" title="Next"></div>
+        <div class="hotzone left" id="zoneLeft" title="Previous photo"></div>
+        <div class="hotzone right" id="zoneRight" title="Next photo"></div>
         <div class="nameOverlay collapsed" id="nameOverlay"><div class="title" id="entityName">&nbsp;</div></div>
       </div>
     </div>
@@ -114,7 +113,7 @@
   <!-- PAGE 2 -->
   <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
     <div class="builder">
-      <div class="hint">Tap to select (blue). Triple-click to rename (or long-press). Use <em>Clear ALL</em> to empty selection.</div>
+      <div class="hint">Tap to select (blue). <strong>Triple-click</strong> to rename (or long-press). <kbd>Alt+C</kbd> clears all selected categories.</div>
       <div class="grid" id="termGrid1"></div>
       <div class="builderActions">
         <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
@@ -128,7 +127,7 @@
   <!-- PAGE 3 -->
   <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
     <div class="builder">
-      <div class="hint">Tap to select (blue). Triple-click to rename (or long-press). Use <em>Clear ALL</em> to empty selection.</div>
+      <div class="hint">Tap to select (blue). <strong>Triple-click</strong> to rename (or long-press). <kbd>Alt+C</kbd> clears all selected categories.</div>
       <div class="grid" id="termGrid2"></div>
       <div class="builderActions">
         <input type="text" id="customTerm2" placeholder="Add a custom term…" />
@@ -142,7 +141,7 @@
   <!-- PAGE 4 -->
   <section id="page4" class="page" role="tabpanel" aria-labelledby="tab4">
     <div class="builder">
-      <div class="hint">Tap to select (blue). Triple-click to rename (or long-press). Use <em>Clear ALL</em> to empty selection.</div>
+      <div class="hint">Tap to select (blue). <strong>Triple-click</strong> to rename (or long-press). <kbd>Alt+C</kbd> clears all selected categories.</div>
       <div class="grid" id="termGrid3"></div>
       <div class="builderActions">
         <input type="text" id="customTerm3" placeholder="Add a custom term…" />
@@ -190,7 +189,10 @@
 </main>
 
 <footer>
-  <div>PC: Right-side keys → <strong>Next</strong> (except P=play/pause). Left-side keys → <strong>Previous</strong> (except S=name). <kbd>Space</kbd>/<kbd>P</kbd>=play/pause. While renaming, hotkeys are disabled. Mobile: <strong>swipe left/right</strong> to switch pages.</div>
+  <div>
+    PC: <strong>ArrowRight/ArrowLeft</strong> = switch pages. <kbd>Space</kbd>/<kbd>P</kbd> = play/pause. <kbd>Alt+C</kbd> = Clear ALL (categories).  
+    While renaming/typing, hotkeys are disabled. Mobile: <strong>swipe left/right</strong> to switch pages.
+  </div>
   <div class="sp"></div>
   <a href="#" id="downloadLink" title="Download current image">Download</a>
 </footer>
@@ -214,7 +216,7 @@
     setPage(idx===5 ? 1 : 5);
   });
 
-  // swipe navigation (works on Samsung Browser). ignores while typing.
+  // swipe navigation (Samsung Browser OK). ignore while typing.
   function isTyping(t){ const tag=(t?.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t?.isContentEditable; }
   let swipeStart=null;
   document.addEventListener('touchstart', (e)=>{ if(isTyping(e.target)) return; const t=e.changedTouches[0]; swipeStart={x:t.clientX,y:t.clientY}; }, {passive:true});
@@ -248,17 +250,12 @@
   function showToast(msg, ms=1200){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=> toast.style.display='none', ms); }
   function clampStep(x){ return Math.round(x*5)/5; } // 0.2s steps
 
-  /* ===== Build & manage category tiles ===== */
+  /* ===== Build & manage category tiles (NO pencil icon) ===== */
   function makeTermButton(label, gridEl){
     const btn=document.createElement('button');
     btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label;
 
-    const edit=document.createElement('span');
-    edit.className='termEdit'; edit.textContent='✏️'; edit.title='Rename';
-    edit.addEventListener('click', (e)=>{ e.stopPropagation(); startEdit(btn); });
-    btn.appendChild(edit);
-
-    // triple-click / select toggle
+    // triple-click to rename; single-click toggles selected
     let clicks=0, cTimer=null;
     btn.addEventListener('click', ()=>{
       clicks++;
@@ -275,7 +272,7 @@
     function startEdit(button){
       if(button.classList.contains('editing')) return;
       button.classList.add('editing');
-      const prev = button.dataset.term || button.textContent.replace('✏️','').trim();
+      const prev = button.dataset.term || button.textContent.trim();
       const input = document.createElement('input');
       input.type='text'; input.value=prev;
       input.style.width='100%'; input.style.padding='8px 10px';
@@ -284,7 +281,8 @@
       button.innerHTML=''; button.appendChild(input); input.focus(); input.select();
       function finish(save){
         const v = save ? (input.value.trim()||prev) : prev;
-        button.classList.remove('editing'); button.innerHTML=''; button.dataset.term=v; button.textContent=v; button.appendChild(edit);
+        button.classList.remove('editing'); button.innerHTML=''; button.dataset.term=v; button.textContent=v;
+        // keep selection state; reapply if content changed
         if(save) debouncedApply();
       }
       input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') finish(true); if(e.key==='Escape') finish(false); });
@@ -304,12 +302,14 @@
         else { makeTermButton(t, g.grid); }
         g.input.value='';
       }; }
-      g.clearAllBtn.addEventListener('click', ()=>{
-        catGrids.forEach(pg=> pg.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
-        items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay();
-        imgwrap.innerHTML='<div class="hint" style="opacity:.7">Selection cleared. Choose categories on Pages 2–4.</div>';
-      });
+      g.clearAllBtn.addEventListener('click', ()=> clearAllSelected());
     });
+  }
+
+  function clearAllSelected(){
+    catGrids.forEach(pg=> pg.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
+    items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay();
+    imgwrap.innerHTML='<div class="hint" style="opacity:.7">Selection cleared. Choose categories on Pages 2–4.</div>';
   }
 
   function populateDefaults(){
@@ -466,7 +466,7 @@
   function startAutoplay(){ if(timer) clearInterval(timer); timer=setInterval(next, Math.max(0.1,slideSeconds)*1000); autoplay=true; cornerPlayStop.classList.add('playing'); }
   function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.classList.remove('playing'); }
 
-  // Click zones
+  // Click zones & rail
   document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
   document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
   nextPhotoBtn.addEventListener('click', ()=>{ stopAutoplay(); next(); });
@@ -475,15 +475,23 @@
   showThisNameBtn.addEventListener('click', ()=>{ if(globalHideNames){ perSlideReveal=true; nameOverlay.classList.remove('collapsed'); } });
   openLinkHeader.addEventListener('click', ()=>{ if(currentLink && currentLink!=='#') window.open(currentLink, '_blank', 'noopener'); });
 
-  // Hotkeys
+  /* ===== PC hotkeys ===== */
   let lastKeyTime=0;
-  document.addEventListener('keydown', (e)=>{ if(isTyping(e.target)) return;
+  document.addEventListener('keydown', (e)=>{
+    if(isTyping(e.target)) return;
     const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now;
     const key=(e.key||'').toLowerCase();
-    if(e.code==='Space'||key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; }
+
+    // Page navigation on arrow keys
+    if(key==='arrowright'){ e.preventDefault(); const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; setPage(idx%5 + 1); return; }
+    if(key==='arrowleft'){ e.preventDefault(); const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; setPage(idx===1?5:idx-1); return; }
+
+    // Clear ALL (Alt+C)
+    if(e.altKey && key==='c'){ e.preventDefault(); clearAllSelected(); return; }
+
+    // Play/pause & name toggle remain
+    if(e.code==='Space' || key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; }
     if(key==='s'){ e.preventDefault(); globalHideNames=!globalHideNames; nameOverlay.classList.toggle('collapsed', globalHideNames); hideAllNamesBtn.textContent=globalHideNames?'Show':'Hide'; return; }
-    if(key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; }
-    if(key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; }
   });
 
   /* ===== Settings (Page 5) ===== */
