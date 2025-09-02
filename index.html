@@ -1,442 +1,340 @@
-<!-- v21 -->
+<!-- v23.1 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Celeb Slideshow — Random Photo Fetcher (v21)</title>
+<title>Celeb Slideshow — Random Photo Fetcher (v23.1)</title>
+<meta name="description" content="Auto-fetch slideshow from Wikidata/Commons. Balanced mixing across selected categories, edit tiles, clear-all on every categories page, seamless swaps, centered images, left rail controls, timing in Settings." />
 <style>
-  :root { --bg:#0b0f14; --rail:#0d1420; --fg:#e5eef7; --muted:#93a3b8; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; }
+  :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; }
   *{box-sizing:border-box}
   html,body{height:100%}
-  body{
-    margin:0; background:var(--bg); color:var(--fg);
-    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial;
-    display:grid; grid-template-rows:auto auto 1fr auto; min-height:100vh;
-  }
+  body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto 1fr auto}
 
-  /* Fixed left rail (doesn't block clicks outside its buttons) */
-  .leftRail{
-    position:fixed; left:0; top:0; bottom:0; width:74px; background:linear-gradient(180deg,var(--rail),rgba(8,12,20,.9));
-    border-right:1px solid rgba(255,255,255,.06); z-index:65; display:grid; grid-template-rows:1fr auto auto 1fr; gap:10px; place-items:center; padding-bottom:12px;
-    pointer-events:none; /* key: rail itself ignores clicks */
-  }
-  .leftRail > *{ pointer-events:auto } /* buttons are clickable */
-  .leftRail::before{content:''; position:absolute; top:0; bottom:0; left:0; width:6px; background:rgba(255,255,255,.06); pointer-events:none}
-  .leftRail.playing::before{background:var(--ok)}
-  .railBtn{width:64px; min-height:44px; display:grid; place-items:center; padding:8px; text-align:center}
-  .playButtonBig{width:64px; height:64px; border-radius:16px; font-size:20px; display:grid; place-items:center}
-  #showThisName{ height:132px; } /* 3× taller */
-
-  /* Shift whole UI so content never sits under the rail */
-  header, nav.tabs, main, footer { padding-left:74px }
-  @media (max-width:768px){ header, nav.tabs, main, footer { padding-left:64px } }
-
-  header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:50; background:rgba(2,6,23,.6); backdrop-filter:blur(8px) saturate(1.1); border-bottom:1px solid rgba(255,255,255,.06)}
+  header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:60; background:#0b0f14; border-bottom:1px solid rgba(255,255,255,.06)}
   h1{font-size:16px; margin:0}
   .sp{flex:1}
-  .iconBtn{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer}
-  .btn{display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; font-weight:700}
+  .iconBtn{height:36px; padding:0 12px; display:inline-grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer; color:#fff}
+
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; user-select:none; font-weight:700}
   .btn.primary{border-color:rgba(96,165,250,.6); background:rgba(96,165,250,.15)}
   .btn.ok{border-color:rgba(52,211,153,.6); background:rgba(52,211,153,.15)}
   .btn.danger{border-color:rgba(248,113,113,.7); background:rgba(248,113,113,.18)}
-  .btn.playing{border-color:rgba(52,211,153,.9); background:rgba(52,211,153,.28)}
+  .btn.playing{border-color:rgba(52,211,153,.9); background:rgba(52,211,153,.3)}
+
   .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
-
-  /* Tabs */
-  .tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:rgba(2,6,23,.35); overflow:auto; position:sticky; top:56px; z-index:49}
-  .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap; background:rgba(255,255,255,.03)}
+  .tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:#0b0f14; overflow:auto}
+  .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap}
   .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.6)}
-
-  main{min-height:0}
-  .page{display:none; height:100%; overflow:auto}
+  .page{display:none; height:100%}
   .page.active{display:block}
 
-  /* Stage: strict center always */
-  .stage{
-    position:relative;
-    display:flex; align-items:center; justify-content:center;
-    height:calc(100vh - (56px + 48px + 52px)); /* header + tabs + footer approx */
-    overflow:hidden;
-  }
+  /* Stage layout */
+  .stageWrap{position:relative; height:calc(100vh - 200px); min-height:360px; display:grid; grid-template-columns:90px 1fr; gap:0; overflow:hidden}
+  .leftRail{position:relative; display:grid; grid-auto-rows:min-content; gap:12px; padding:12px 8px; background:linear-gradient(90deg, rgba(59,130,246,.25), rgba(59,130,246,.08)); border-right:1px solid rgba(255,255,255,.06); z-index:5}
+  .playButtonBig{height:140px; font-size:18px}
+  .railBtn{width:100%; height:56px}
+  #showThisName, #nextPhoto{height:132px; white-space:normal; line-height:1.1; padding:12px}
 
-  .imgwrap{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
-  img.photo{
-    max-width:85%; max-height:85%;
-    object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6);
-    opacity:0; transition:opacity .18s ease;
-  }
+  .stage{position:relative; overflow:hidden; display:grid; place-items:center}
+  .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center; overflow:hidden}
+  img.photo{max-width:88vw; max-height:72vh; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6); opacity:0; transition:opacity .18s ease}
   img.photo.show{opacity:1}
 
-  /* Tap zones */
-  .hotzone{position:absolute; top:0; bottom:0; z-index:10}
-  .hotzone.left{left:0; width:33.333%}
+  .hotzone{position:absolute; top:0; bottom:0; z-index:2}
+  .hotzone.left{left:90px; width:33.333%}
   .hotzone.right{right:0; width:66.667%}
 
-  /* Name overlay ~30% bottom of photo area */
-  .nameArea{position:absolute; left:0; right:0; bottom:0; height:30%; display:grid; place-items:center; padding:8px; z-index:40}
-  .nameBackdrop{position:absolute; inset:0; background:linear-gradient(180deg, rgba(2,6,23,0) 0%, rgba(2,6,23,.75) 35%, rgba(2,6,23,.92) 100%)}
-  .nameLayer{position:relative; width:min(92%, 900px); display:grid; gap:10px; justify-items:center}
-  .nameBar{width:100%; background:transparent; border:none; padding:0; text-align:center}
-  .nameBar.collapsed{display:none}
-  .title{font-size:24px; font-weight:900; text-shadow:0 2px 12px rgba(0,0,0,.85)}
+  .nameOverlay{position:absolute; left:50%; bottom:6%; transform:translateX(-50%); width:min(92%, 820px); background:linear-gradient(180deg, rgba(2,6,23,0), rgba(2,6,23,.92)); border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px 16px; text-align:center}
+  .nameOverlay.collapsed{display:none}
+  .title{font-size:22px; font-weight:800}
 
-  /* Category pages */
+  .linkTopRight{position:fixed; right:16px; top:64px; z-index:40; border-radius:10px; height:32px; padding:0 10px}
+
   .builder{padding:12px}
-  .hint{font-size:13px; color:var(--muted); margin-bottom:8px}
+  .hintRow{display:flex; gap:10px; align-items:center; margin-bottom:8px}
+  .hint{font-size:13px; color:var(--muted)}
   .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
-  .termBtn{padding:12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
+  .termBtn{position:relative; padding:12px 38px 12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
   .termBtn.selected{outline:2px solid var(--accent); background:#1f2937}
+  .termBtn.editing{outline:2px dashed var(--warn)}
+  .termEdit{position:absolute; right:8px; top:8px; width:24px; height:24px; border-radius:6px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); font-size:14px; line-height:1; cursor:pointer}
 
   .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
-  .builderActions .sp{flex:1}
 
   footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); border-top:1px solid rgba(255,255,255,.06)}
   footer a{color:var(--ok); text-decoration:none}
 
-  .toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none; z-index:200}
+  /* Blue settings ball */
+  .fabSettings{position:fixed; right:16px; bottom:16px; width:56px; height:56px; border-radius:50%; display:grid; place-items:center; background:#3b82f6; color:#fff; font-size:22px; border:1px solid rgba(255,255,255,.2); box-shadow:0 10px 24px rgba(0,0,0,.35); z-index:80}
 
-  /* Settings steppers */
-  .stepper{display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.06)}
-  .quickBtn{padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
-  .stepVal{min-width:40px; text-align:center; font-weight:800}
+  .toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none; z-index:90}
+  .debug{position:fixed; left:12px; bottom:60px; font-size:11px; color:#9fb7d6; opacity:.7; z-index:90}
+
+  @media (max-width: 768px){
+    .stageWrap{grid-template-columns:76px 1fr}
+    .hotzone.left{left:76px}
+    .playButtonBig{height:120px}
+    img.photo{max-width:92vw; max-height:66vh}
+  }
 </style>
 </head>
 <body>
-  <!-- Fixed left rail -->
-  <div class="leftRail" id="leftRail">
-    <button class="btn railBtn" id="hideAllNames" title="Hide/Show names">Hide</button>
-    <button class="btn primary playButtonBig" id="cornerPlayStop" title="Play / Stop">⏯️</button>
-    <button class="btn railBtn" id="showThisName" title="Show this photo’s name">Show</button>
-  </div>
-
 <header>
   <h1>🎞️ Celeb Slideshow</h1>
   <span class="badge" id="countBadge">—</span>
   <div class="sp"></div>
-  <button class="iconBtn" id="gearBtn" title="Settings (JSON & timing)">⚙️</button>
-  <button class="btn ok" id="openLinkHeader" title="Open source page">Link</button>
+  <button class="iconBtn" id="gearBtn" title="Settings (toggle)">⚙️</button>
   <button class="iconBtn" id="nextTabBtn" title="Next page">➡️</button>
 </header>
 
-<nav class="tabs" role="tablist" id="tabsRow">
-  <button class="tab" role="tab" aria-controls="page1" aria-selected="true"  id="tab1">Page 1: Slideshow</button>
+<button class="iconBtn linkTopRight" id="openLinkHeader" title="Open related page">🔗 Link</button>
+
+<nav class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-controls="page1" aria-selected="true" id="tab1">Page 1: Slideshow</button>
   <button class="tab" role="tab" aria-controls="page2" aria-selected="false" id="tab2">Page 2: Categories A</button>
   <button class="tab" role="tab" aria-controls="page3" aria-selected="false" id="tab3">Page 3: Categories B</button>
   <button class="tab" role="tab" aria-controls="page4" aria-selected="false" id="tab4">Page 4: Categories C</button>
   <button class="tab" role="tab" aria-controls="page5" aria-selected="false" id="tab5">Page 5: Settings</button>
 </nav>
 
-<main id="mainArea">
-  <!-- Page 1 -->
+<main>
+  <!-- PAGE 1 -->
   <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
-    <div class="stage" id="stage">
-      <div class="imgwrap" id="imgwrap"></div>
-      <div class="hotzone left"  id="zoneLeft"  title="Previous"></div>
-      <div class="hotzone right" id="zoneRight" title="Next"></div>
-
-      <div class="nameArea">
-        <div class="nameBackdrop"></div>
-        <div class="nameLayer">
-          <div class="nameBar" id="nameBar"><div class="title" id="entityName">&nbsp;</div></div>
-        </div>
+    <div class="stageWrap">
+      <div class="leftRail" id="leftRail">
+        <button class="btn" id="hideAllNames">Hide</button>
+        <button class="btn primary playButtonBig" id="cornerPlayStop">⏯️</button>
+        <button class="btn" id="showThisName">Show</button>
+        <button class="btn" id="nextPhoto">Next</button>
+      </div>
+      <div class="stage" id="stage">
+        <div class="imgwrap" id="imgwrap"><div class="hint" style="opacity:.7">Fetching photos…</div></div>
+        <div class="hotzone left" id="zoneLeft" title="Previous"></div>
+        <div class="hotzone right" id="zoneRight" title="Next"></div>
+        <div class="nameOverlay collapsed" id="nameOverlay"><div class="title" id="entityName">&nbsp;</div></div>
       </div>
     </div>
   </section>
 
-  <!-- Page 2 -->
+  <!-- PAGE 2 -->
   <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
     <div class="builder">
-      <div class="hint">Tap categories to include them. Selection applies automatically (random order). Use “Clear selection”.</div>
+      <div class="hintRow"><div class="hint">Tap to select (blue). Triple-click to rename. Use Clear ALL to empty selection.</div></div>
       <div class="grid" id="termGrid1"></div>
       <div class="builderActions">
         <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
         <button class="btn ok" id="addTerm1">Add</button>
         <div class="sp"></div>
-        <button class="btn danger" id="clearSelBtn">Clear selection</button>
+        <button class="btn danger" id="clearAllSelBtn1">Clear ALL</button>
       </div>
     </div>
   </section>
 
-  <!-- Page 3 -->
+  <!-- PAGE 3 -->
   <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
     <div class="builder">
+      <div class="hintRow"><div class="hint">Tap to select (blue). Triple-click to rename. Use Clear ALL to empty selection.</div></div>
       <div class="grid" id="termGrid2"></div>
       <div class="builderActions">
         <input type="text" id="customTerm2" placeholder="Add a custom term…" />
         <button class="btn ok" id="addTerm2">Add</button>
         <div class="sp"></div>
-        <button class="btn danger" id="clearSelBtn2">Clear selection</button>
+        <button class="btn danger" id="clearAllSelBtn2">Clear ALL</button>
       </div>
     </div>
   </section>
 
-  <!-- Page 4 -->
+  <!-- PAGE 4 -->
   <section id="page4" class="page" role="tabpanel" aria-labelledby="tab4">
     <div class="builder">
+      <div class="hintRow"><div class="hint">Tap to select (blue). Triple-click to rename. Use Clear ALL to empty selection.</div></div>
       <div class="grid" id="termGrid3"></div>
       <div class="builderActions">
         <input type="text" id="customTerm3" placeholder="Add a custom term…" />
         <button class="btn ok" id="addTerm3">Add</button>
         <div class="sp"></div>
-        <button class="btn danger" id="clearSelBtn3">Clear selection</button>
+        <button class="btn danger" id="clearAllSelBtn3">Clear ALL</button>
       </div>
     </div>
   </section>
 
-  <!-- Page 5: Settings -->
+  <!-- PAGE 5 (Settings) -->
   <section id="page5" class="page" role="tabpanel" aria-labelledby="tab5">
-    <div class="builder" style="max-width:720px">
-      <h3>Timing</h3>
-      <div class="hint">Slide speed and Name reveal delay (seconds ±1s, steps of 0.2s).</div>
-      <div class="builderActions">
-        <span>Slide speed</span>
-        <div class="stepper" id="fineRow">
-          <button class="quickBtn" data-delta="-1">−1s</button>
-          <span class="stepVal" id="fineSec">2.0</span>
-          <button class="quickBtn" data-delta="1">＋1s</button>
+    <div class="builder" style="max-width:880px">
+      <div class="hintRow"><div class="hint">Timing controls. Tap ⚙️ (or the blue ball) again to exit Settings.</div></div>
+
+      <div style="display:grid; gap:14px; padding:8px; background:#0f172a; border:1px solid rgba(255,255,255,.08); border-radius:12px">
+        <div><strong>Slide speed</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+          <button class="btn" data-speed="-1">−1s</button>
+          <button class="btn" data-speed="+1">＋1s</button>
+          <button class="btn" data-speed="-0.2">−0.2s</button>
+          <button class="btn" data-speed="+0.2">＋0.2s</button>
+          <div style="margin-left:auto"><span class="hint">Total:</span> <strong id="fineTotal">2.0s</strong></div>
         </div>
-        <div class="stepper" id="fineRowMs">
-          <button class="quickBtn" data-delta="-0.2">−0.2s</button>
-          <span class="stepVal" id="fineMs">0.0</span>
-          <button class="quickBtn" data-delta="0.2">＋0.2s</button>
+
+        <div><strong>Name reveal delay</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+          <button class="btn" data-nd="-1">−1s</button>
+          <button class="btn" data-nd="+1">＋1s</button>
+          <button class="btn" data-nd="-0.2">−0.2s</button>
+          <button class="btn" data-nd="+0.2">＋0.2s</button>
+          <div style="margin-left:auto"><span class="hint">Total:</span> <strong id="nameTotal">0.5s</strong></div>
         </div>
-        <strong id="fineTotal">2.0s</strong>
       </div>
 
-      <div class="builderActions">
-        <span>Name reveal</span>
-        <div class="stepper" id="nameFineRow">
-          <button class="quickBtn" data-delta="-1">−1s</button>
-          <span class="stepVal" id="nameSec">0.5</span>
-          <button class="quickBtn" data-delta="1">＋1s</button>
+      <div style="display:grid; gap:10px; margin-top:12px">
+        <button class="btn ok" id="exportBtn">Export categories → JSON</button>
+        <textarea id="jsonBox" placeholder='Paste JSON here to import…' style="height:160px; width:100%; background:#0b1220; color:#e5eef7; border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:10px"></textarea>
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <button class="btn ok" id="importBtn">Import JSON</button>
+          <button class="btn" id="resetBtn">Reset to defaults</button>
         </div>
-        <div class="stepper" id="nameFineRowMs">
-          <button class="quickBtn" data-delta="-0.2">−0.2s</button>
-          <span class="stepVal" id="nameMs">0.0</span>
-          <button class="quickBtn" data-delta="0.2">＋0.2s</button>
-        </div>
-        <strong id="nameTotal">0.5s</strong>
       </div>
-
-      <h3>Categories JSON</h3>
-      <div class="builderActions">
-        <button class="btn primary" id="exportBtn">Export → JSON</button>
-        <button class="btn ok" id="importBtn">Import JSON</button>
-        <button class="btn" id="resetBtn">Reset defaults</button>
-      </div>
-      <textarea id="jsonBox" placeholder='Paste JSON here to import…' style="width:100%; min-height:180px"></textarea>
     </div>
   </section>
 </main>
 
 <footer>
-  <div>PC keys: right side → Next (except <kbd>P</kbd>=play/pause). Left side → Previous (except <kbd>S</kbd>=name). <kbd>Space</kbd>/<kbd>P</kbd>=play/pause. Mobile: swipe left/right to switch pages.</div>
+  <div>PC: Right-side keys → <strong>Next</strong> (except P=play/pause). Left-side keys → <strong>Previous</strong> (except S=name). <kbd>Space</kbd>/<kbd>P</kbd>=play/pause. While renaming, hotkeys are disabled. Mobile: swipe left/right to switch pages.</div>
   <div class="sp"></div>
   <a href="#" id="downloadLink" title="Download current image">Download</a>
 </footer>
 
+<!-- Blue Settings FAB -->
+<button class="fabSettings" id="fabSettings" title="Open/Close Settings">⚙️</button>
+
 <div class="toast" id="toast"></div>
+<div class="debug" id="debug"></div>
 
 <script>
 (function(){
-  // Stage height calc (prevents off-center after orientation/resize)
-  const header = document.querySelector('header');
-  const tabsRow = document.getElementById('tabsRow');
-  const footer = document.querySelector('footer');
-  const stage  = document.getElementById('stage');
-  function setStageHeight(){
-    const h = window.innerHeight;
-    const used = header.offsetHeight + tabsRow.offsetHeight + footer.offsetHeight;
-    stage.style.height = Math.max(280, h - used) + 'px';
-  }
-  addEventListener('resize', setStageHeight);
-  addEventListener('orientationchange', setStageHeight);
-  setStageHeight();
-
-  // Tabs + Settings toggle
+  // Elements
   const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
-  let lastNonSettings = 1;
-  function activeIndex(){ return tabs.findIndex(t=> t.page.classList.contains('active')) + 1; }
-  function setPage(idx){
-    tabs.forEach((t,i)=>{ const on=(i+1)===idx; t.page.classList.toggle('active', on); t.tab.setAttribute('aria-selected', String(on)); });
-    if(idx!==5) lastNonSettings = idx;
-    setStageHeight();
-  }
-  tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
+  const setPage = (idx)=> tabs.forEach((t,i)=>{ const on=(i+1)===idx; t.page.classList.toggle('active', on); t.tab.setAttribute('aria-selected', String(on)); });
 
-  const gearBtn = document.getElementById('gearBtn');
-  gearBtn.addEventListener('click', ()=>{
-    const current = activeIndex();
-    if(current===5){ setPage(lastNonSettings || 1); } else { lastNonSettings = current; setPage(5); }
-  });
-
-  document.getElementById('nextTabBtn').addEventListener('click', ()=>{
-    const active = activeIndex();
-    setPage(active%5 + 1);
-  });
-
-  // Elements & state
-  const leftRail = document.getElementById('leftRail');
-  const cornerPlayStop = document.getElementById('cornerPlayStop');
+  const imgwrap = document.getElementById('imgwrap');
+  const nameOverlay = document.getElementById('nameOverlay');
+  const entityName = document.getElementById('entityName');
   const hideAllNamesBtn = document.getElementById('hideAllNames');
   const showThisNameBtn = document.getElementById('showThisName');
-  const imgwrap = document.getElementById('imgwrap');
-  const nameBar = document.getElementById('nameBar');
-  const entityName = document.getElementById('entityName');
+  const nextPhotoBtn = document.getElementById('nextPhoto');
+  const cornerPlayStop = document.getElementById('cornerPlayStop');
   const openLinkHeader = document.getElementById('openLinkHeader');
+  const gearBtn = document.getElementById('gearBtn');
+  const fabSettings = document.getElementById('fabSettings');
   const countBadge = document.getElementById('countBadge');
   const downloadLink = document.getElementById('downloadLink');
   const toast = document.getElementById('toast');
 
-  let autoplay=false, timer=null;
-  let items=[], currIndex=-1, currentImg=null, currentLink='#';
-  let globalHideNames=true, perSlideReveal=false;
-  window.__slideSeconds = 2.0;
-  let nameDelay = 500;
-
-  // Timing controls
-  function roundStep(v){ return Number((Math.round(v/0.2)*0.2).toFixed(1)); }
-  function setSlide(s){
-    s = Math.max(0, Math.min(10, s));
-    window.__slideSeconds = roundStep(s);
-    document.getElementById('fineSec').textContent = window.__slideSeconds.toFixed(1);
-    document.getElementById('fineMs').textContent = (window.__slideSeconds - Math.floor(window.__slideSeconds)).toFixed(1);
-    document.getElementById('fineTotal').textContent = window.__slideSeconds.toFixed(1)+'s';
-    if(autoplay) startAutoplay();
-  }
-  function setNameDelaySeconds(s){
-    s = Math.max(0, Math.min(10, s));
-    nameDelay = Math.round(roundStep(s)*1000);
-    document.getElementById('nameSec').textContent = (nameDelay/1000).toFixed(1);
-    document.getElementById('nameMs').textContent = ((nameDelay/1000) - Math.floor(nameDelay/1000)).toFixed(1);
-    document.getElementById('nameTotal').textContent = (nameDelay/1000).toFixed(1)+'s';
-  }
-  document.querySelectorAll('#fineRow .quickBtn, #fineRowMs .quickBtn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ const d=Number(btn.dataset.delta); setSlide((window.__slideSeconds||0)+d); });
-  });
-  document.querySelectorAll('#nameFineRow .quickBtn, #nameFineRowMs .quickBtn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ const d=Number(btn.dataset.delta); setNameDelaySeconds((nameDelay/1000)+d); });
-  });
-
-  // Keyboard
-  let lastKeyTime=0;
-  function isTyping(t){ return t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA' || t.isContentEditable); }
-  document.addEventListener('keydown', e=>{
-    if(isTyping(e.target)) return;
-    const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now;
-    const key=(e.key||'').toLowerCase();
-    if (e.code==='Space'||key==='p'){ e.preventDefault(); autoplay? stopAutoplay() : startAutoplay(); return; }
-    if (key==='s'){ e.preventDefault(); toggleGlobalName(); return; }
-    if (key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; }
-    if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; }
-  });
-
-  // Image pipeline
-  function swapIn(img){
-    currentImg = img; currentImg.classList.add('photo','show');
-    imgwrap.style.display='flex'; imgwrap.style.alignItems='center'; imgwrap.style.justifyContent='center';
-    imgwrap.innerHTML = '';
-    imgwrap.appendChild(currentImg);
-  }
-  function loadWithFallback(url, fileName){
-    return new Promise((resolve,reject)=>{
-      const img = new Image(); img.decoding='async'; img.referrerPolicy='no-referrer';
-      img.onload = ()=> resolve(img);
-      img.onerror = ()=>{
-        const alt = 'https://commons.wikimedia.org/w/thumb.php?width=1600&f=' + encodeURIComponent((fileName||'').replace(/^File:/,''));
-        const img2 = new Image(); img2.decoding='async'; img2.referrerPolicy='no-referrer';
-        img2.onload = ()=> resolve(img2);
-        img2.onerror = ()=> reject(new Error('both loaders failed'));
-        img2.src = alt;
-      };
-      img.src = url;
-    });
-  }
-  async function showIndex(i){
-    if(!items.length){
-      imgwrap.innerHTML = '<div style="opacity:.7">No photos. Select categories on Page 2–4.</div>';
-      return;
-    }
-    currIndex = (i + items.length) % items.length;
-    const it = items[currIndex];
-    try{
-      const fileName = it.fileTitle || 'File:';
-      const img = await loadWithFallback(it.imageUrl, fileName);
-      swapIn(img);
-      entityName.textContent = it.name || '—';
-      nameBar.classList.add('collapsed');
-      setTimeout(()=>{
-        const shouldShow = (!globalHideNames) || perSlideReveal;
-        if(shouldShow) nameBar.classList.remove('collapsed');
-        perSlideReveal = false;
-      }, nameDelay);
-      currentLink = it.itemUrl || '#';
-      openLinkHeader.onclick = ()=>{ if(currentLink && currentLink!=='#') window.open(currentLink,'_blank','noopener'); };
-      downloadLink.href = it.imageUrl; downloadLink.download = (fileName||'image').replace(/^File:/,'');
-      setStageHeight();
-    }catch{ next(); }
-  }
-  function next(){ showIndex((currIndex + 1) % items.length); }
-  function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
-
-  function startAutoplay(){ if(timer) clearInterval(timer); timer = setInterval(next, (window.__slideSeconds||2)*1000); autoplay = true; cornerPlayStop.textContent='⏹️'; cornerPlayStop.classList.add('playing'); leftRail.classList.add('playing'); }
-  function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.textContent='▶️'; cornerPlayStop.classList.remove('playing'); leftRail.classList.remove('playing'); }
-  cornerPlayStop.addEventListener('click', ()=>{ autoplay? stopAutoplay() : startAutoplay(); });
-  function toggleGlobalName(){ globalHideNames = !globalHideNames; hideAllNamesBtn.textContent = globalHideNames ? 'Show' : 'Hide'; nameBar.classList.toggle('collapsed', globalHideNames); }
-  hideAllNamesBtn.addEventListener('click', toggleGlobalName);
-  showThisNameBtn.addEventListener('click', ()=>{ if(globalHideNames){ perSlideReveal = true; nameBar.classList.remove('collapsed'); } });
-
-  document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
-  document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
-
-  // ---- Categories (single, non-duplicated declaration)
+  // Category grids
   const catGrids = [
-    { grid: document.getElementById('termGrid1'), input: document.getElementById('customTerm1'), add: document.getElementById('addTerm1') },
-    { grid: document.getElementById('termGrid2'), input: document.getElementById('customTerm2'), add: document.getElementById('addTerm2') },
-    { grid: document.getElementById('termGrid3'), input: document.getElementById('customTerm3'), add: document.getElementById('addTerm3') },
+    { grid: document.getElementById('termGrid1'), input: document.getElementById('customTerm1'), add: document.getElementById('addTerm1'), clearAllBtn: document.getElementById('clearAllSelBtn1') },
+    { grid: document.getElementById('termGrid2'), input: document.getElementById('customTerm2'), add: document.getElementById('addTerm2'), clearAllBtn: document.getElementById('clearAllSelBtn2') },
+    { grid: document.getElementById('termGrid3'), input: document.getElementById('customTerm3'), add: document.getElementById('addTerm3'), clearAllBtn: document.getElementById('clearAllSelBtn3') },
   ];
-  ['clearSelBtn','clearSelBtn2','clearSelBtn3'].forEach(id=>{
-    const b=document.getElementById(id);
-    if(b) b.addEventListener('click', ()=>{
-      catGrids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
-      items=[]; currIndex=-1; countBadge.textContent='0';
-      imgwrap.innerHTML = '<div style="opacity:.7">Selection cleared. Choose categories.</div>';
-      stopAutoplay(); setStageHeight();
-    });
+
+  // State
+  let items = []; let timer=null; let autoplay=false; let currIndex=-1; let lastKeyTime=0;
+  let globalHideNames=false; let perSlideReveal=false; let currentLink='#';
+  let slideSeconds = 2.0; let nameDelay = 500;
+
+  // Tabs + header buttons
+  tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
+  document.getElementById('nextTabBtn').addEventListener('click', ()=>{
+    const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1;
+    setPage(idx%5 + 1);
   });
 
+  function toggleSettings(){
+    const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1;
+    setPage(idx===5 ? 1 : 5);
+  }
+  gearBtn.addEventListener('click', toggleSettings);
+  fabSettings.addEventListener('click', toggleSettings);
+
+  // Build categories
   function makeTermButton(label, gridEl){
-    const btn=document.createElement('button');
+    const btn = document.createElement('button');
     btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label;
+
+    // edit icon
+    const edit = document.createElement('span');
+    edit.className='termEdit'; edit.title='Rename'; edit.textContent='✏️';
+    edit.addEventListener('click', (e)=>{ e.stopPropagation(); startEdit(btn); });
+    btn.appendChild(edit);
+
+    // triple-click to rename
+    let clicks=0, cTimer=null;
     btn.addEventListener('click', ()=>{
-      btn.classList.toggle('selected'); debouncedApply();
+      clicks++;
+      if(clicks>=3){ clearTimeout(cTimer); clicks=0; startEdit(btn); return; }
+      clearTimeout(cTimer);
+      cTimer=setTimeout(()=>{ clicks=0; btn.classList.toggle('selected'); debouncedApply(); }, 220);
     });
-    gridEl.appendChild(btn); return btn;
+
+    // long-press to rename (mobile)
+    let pTimer=null;
+    btn.addEventListener('touchstart', ()=>{ pTimer=setTimeout(()=> startEdit(btn), 600); }, {passive:true});
+    ['touchend','touchmove','touchcancel'].forEach(ev=> btn.addEventListener(ev, ()=> clearTimeout(pTimer), {passive:true}));
+
+    function startEdit(button){
+      if(button.classList.contains('editing')) return;
+      button.classList.add('editing');
+      const prev = button.dataset.term || button.textContent.replace('✏️','').trim();
+      const input = document.createElement('input');
+      input.type='text'; input.value=prev;
+      input.style.width='100%'; input.style.padding='8px 10px';
+      input.style.borderRadius='8px'; input.style.border='1px solid rgba(255,255,255,.25)';
+      input.style.background='#0f172a'; input.style.color='#e5eef7';
+      button.innerHTML=''; button.appendChild(input); input.focus(); input.select();
+      function finish(save){
+        const v = save ? (input.value.trim()||prev) : prev;
+        button.classList.remove('editing'); button.innerHTML=''; button.dataset.term=v; button.textContent=v; button.appendChild(edit);
+        if(save) debouncedApply();
+      }
+      input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') finish(true); if(e.key==='Escape') finish(false); });
+      input.addEventListener('blur', ()=> finish(true));
+    }
+
+    gridEl.appendChild(btn);
+    return btn;
   }
 
-  const presets = [
-    'Norwegian celebs','Beatles','US celebrities','Norwegian politicians','Norwegian CEO','US CEO','World CEO','Music producers',
-    "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters','objects','household objects','clutter home objects','cars',
-    'actors 2025','singers 2024','bands 2024','scientists','historical figures in science','historical leaders','historical pioneers','cars of 2010','cars of 2025'
-  ];
-  (function populate(){
-    const lists=[catGrids[0].grid,catGrids[1].grid,catGrids[2].grid];
-    presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16),2); makeTermButton(p, lists[gi]); });
-    // Auto-select “Norwegian celebs”
-    Array.from(lists[0].children).forEach(b=>{ if(b.dataset.term==='Norwegian celebs') b.classList.add('selected'); });
-  })();
-
-  [0,1,2].forEach(i=>{
-    const g=catGrids[i]; if(!g) return;
-    g.add?.addEventListener('click', ()=>{
-      const v=(g.input.value||'').trim(); if(!v) return;
-      makeTermButton(v, g.grid).classList.add('selected');
-      g.input.value=''; debouncedApply();
+  function ensureMinTiles(){ const total = catGrids.reduce((n,g)=> n + g.grid.querySelectorAll('.termBtn').length, 0); for(let i=total;i<48;i++){ const gi=Math.min(Math.floor(i/16), catGrids.length-1); makeTermButton('Custom term', catGrids[gi].grid); } }
+  function attachAddHandlers(){
+    catGrids.forEach(g=>{
+      if(g.add){ g.add.onclick = ()=>{ const t=(g.input.value||'').trim(); if(!t) return;
+        const count=g.grid.querySelectorAll('.termBtn').length;
+        if(count>=16){ const nextIndex=catGrids.indexOf(g)+1; makeTermButton(t, catGrids[Math.min(nextIndex, catGrids.length-1)].grid); }
+        else { makeTermButton(t, g.grid); }
+        g.input.value='';
+      }; }
+      // Clear ALL on every page
+      g.clearAllBtn.addEventListener('click', ()=>{
+        catGrids.forEach(pg=> pg.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
+        items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay();
+        imgwrap.innerHTML='<div class="hint" style="opacity:.7">Selection cleared. Choose categories on Pages 2–4.</div>';
+      });
     });
-  });
+  }
 
-  // Data query builders
+  function populateDefaults(){
+    catGrids.forEach(g=> g.grid.innerHTML='');
+    const presets = [
+      'Norwegian celebs','US celebs','Norwegian politicians','Norwegian ceo','US ceo','World ceo','Music producers',
+      "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters',
+      'objects','household objects','clutter home objects','cars','cars of 2010','cars of 2025',
+      'Norwegian actors','Norwegian musicians','Norwegian writers','UK celebrity','British actors',
+      'actors 2025','singers 2024','bands 2024','scientists','historical figures in science','historical leaders','historical pioneers'
+    ];
+    presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16), catGrids.length-1); makeTermButton(p, catGrids[gi].grid); });
+    ensureMinTiles(); attachAddHandlers();
+  }
+
+  // ===== Wikidata query builder (unified entity)
   function H(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . BIND(?person AS ?entity) }`; }
   function F(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} BIND(?person AS ?entity) }`; }
   function T(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . BIND(?thing AS ?entity) }`; }
@@ -444,20 +342,20 @@
   const CATEGORY_BLOCKS = {
     'Beatles': () => H([ 'wdt:P463 wd:Q1299 ;' ]),
     'Norwegian celebs': () => H([ 'wdt:P27 wd:Q20 ;' ]),
-    'US celebrities': () => H([ 'wdt:P27 wd:Q30 ;' ]),
-    'Norwegian politicians': () => H([ 'wdt:P27 wd:Q20 ;','wdt:P106 wd:Q82955 ;' ]),
-    'Norwegian CEO': () => H([ 'wdt:P27 wd:Q20 ;','wdt:P39 wd:Q484876 ;' ]),
-    'US CEO': () => H([ 'wdt:P27 wd:Q30 ;','wdt:P39 wd:Q484876 ;' ]),
-    'World CEO': () => H([ 'wdt:P39 wd:Q484876 ;' ]),
+    'US celebs': () => H([ 'wdt:P27 wd:Q30 ;' ]),
+    'Norwegian politicians': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P106 wd:Q82955 ;' ]),
+    'Norwegian ceo': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P39 wd:Q484876 ;' ]),
+    'US ceo': () => H([ 'wdt:P27 wd:Q30 ;', 'wdt:P39 wd:Q484876 ;' ]),
+    'World ceo': () => H([ 'wdt:P39 wd:Q484876 ;' ]),
     'Music producers': () => H([ 'wdt:P106 wd:Q183945 ;' ]),
     "Models of the 50's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image .
-      OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . }
-      FILTER( (BOUND(?start) && year(?start) <= 1959) || (BOUND(?end) && year(?end) >= 1950) || (!BOUND(?start) && !BOUND(?end)) )
-      BIND(?person AS ?entity) }`,
+        OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . }
+        FILTER( (BOUND(?start) && year(?start) <= 1959) || (BOUND(?end) && year(?end) >= 1950) || (!BOUND(?start) && !BOUND(?end)) )
+        BIND(?person AS ?entity) }`,
     "Models of the 80's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image .
-      OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . }
-      FILTER( (BOUND(?start) && year(?start) <= 1989) || (BOUND(?end) && year(?end) >= 1980) || (!BOUND(?start) && !BOUND(?end)) )
-      BIND(?person AS ?entity) }`,
+        OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . }
+        FILTER( (BOUND(?start) && year(?start) <= 1989) || (BOUND(?end) && year(?end) >= 1980) || (!BOUND(?start) && !BOUND(?end)) )
+        BIND(?person AS ?entity) }`,
     'famous movie characters': () => F([ ' ?person wdt:P31 wd:Q15773347 . ' ]),
     'famous cartoon characters': () => F([ ' { ?person wdt:P31 wd:Q15711870 . } UNION { ?person wdt:P31 wd:Q373494 . } ' ]),
     'objects': () => T([ ' ?thing wdt:P31/wdt:P279* wd:Q488383 . ' ]),
@@ -466,140 +364,195 @@
     'cars': () => T([ ' { ?thing wdt:P31 wd:Q1420 . } UNION { ?thing wdt:P31 wd:Q3231690 . } ' ]),
     'actors 2025': () => H([ 'wdt:P106 wd:Q33999 ;' ]),
     'singers 2024': () => H([ 'wdt:P106 wd:Q177220 ;' ]),
-    'bands 2024': () => T([ ' ?thing wdt:P31/wdt:P279* wd:Q215380 . ' ]),
-    'scientists': () => H([ 'wdt:P106 wd:Q901 ; ' ]),
-    'historical figures in science': () => H([ 'wdt:P106 wd:Q901 ; ' ]),
-    'historical leaders': () => H([ 'wdt:P106 wd:Q82955 ; ' ]),
-    'historical pioneers': () => H([ 'wdt:P106 wd:Q81096 ; ' ])
+    'bands 2024': () => T([ ' ?thing wdt:P31 wd:Q215380 . ' ]),
+    'scientists': () => H([ 'wdt:P106 wd:Q901 . ' ]),
+    'historical figures in science': () => H([ 'wdt:P106 wd:Q901 . ' ]),
+    'historical leaders': () => H([ 'wdt:P106 wd:Q82955 . ' ]),
+    'historical pioneers': () => H([ 'wdt:P106 wd:Q200217 . ' ]),
   };
 
   function parseDynamicTerm(term){
-    const t = term.toLowerCase();
-    const year = t.match(/(\d{4})/);
-    if (t.includes('cars') && year){
-      const y = +year[1];
+    const t = term.toLowerCase().trim();
+    const m = t.match(/(\d{4})/);
+    if(/\bcars?\b/.test(t) && m){
+      const y = +m[1];
       return `{ ?thing wdt:P18 ?image . { ?thing wdt:P31 wd:Q3231690 . OPTIONAL { ?thing wdt:P571 ?inception . } FILTER(BOUND(?inception) && year(?inception) = ${y}) } BIND(?thing AS ?entity) }`;
     }
-    if (t.includes('cars')) return CATEGORY_BLOCKS['cars']();
-    if (t.includes('household')) return CATEGORY_BLOCKS['household objects']();
-    if (t.includes('clutter')) return CATEGORY_BLOCKS['clutter home objects']();
-    if (t.includes('objects')) return CATEGORY_BLOCKS['objects']();
+    if(/\bobjects?\b/.test(t)) return CATEGORY_BLOCKS['objects']();
+    if(/household/.test(t)) return CATEGORY_BLOCKS['household objects']();
+    if(/clutter/.test(t)) return CATEGORY_BLOCKS['clutter home objects']();
+    if(/\bcars?\b/.test(t)) return CATEGORY_BLOCKS['cars']();
     return null;
   }
 
-  function buildSPARQLFromTerms(terms){
-    const blocks = [];
-    terms.forEach(raw=>{
-      const label = (raw||'').trim();
-      const fixed = CATEGORY_BLOCKS[label] || CATEGORY_BLOCKS[label.replace(/celbs/i,'celebs')] || CATEGORY_BLOCKS[label.replace(/us celebs/i,'US celebrities')] || CATEGORY_BLOCKS[label.replace(/us ceo/i,'US CEO')];
-      if (fixed) { blocks.push(fixed()); return; }
-      const dyn = parseDynamicTerm(label); if(dyn){ blocks.push(dyn); return; }
-      blocks.push(H([])); // fallback: any person w/ image
-    });
-    const union = blocks.join('\nUNION\n');
-    return `SELECT ?entity ?entityLabel ?image WHERE {
-      ${union}
+  async function sparqlQuery(q){
+    const endpoint='https://query.wikidata.org/sparql';
+    const body = new URLSearchParams(); body.set('query', q);
+    const res = await fetch(endpoint, { method:'POST', headers:{'Accept':'application/sparql-results+json','Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, body });
+    if(!res.ok){ const txt=await res.text().catch(()=> ''); throw new Error('WDQS '+res.status+' '+txt.slice(0,120)); }
+    return res.json();
+  }
+
+  async function fetchForSingleTerm(term){
+    function blockFor(t){
+      const fixed = CATEGORY_BLOCKS[t] || CATEGORY_BLOCKS[t.replace(/celbs/i,'celebs')];
+      if(fixed) return fixed();
+      const dyn = parseDynamicTerm(t); if(dyn) return dyn;
+      return `{ ?person wdt:P31 wd:Q5 ; wdt:P18 ?image . BIND(?person AS ?entity) }`;
+    }
+    const q = `SELECT ?entity ?entityLabel ?image WHERE {
+      ${blockFor(term)}
       SERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }
-    } LIMIT 300`;
-  }
+    } LIMIT 120`;
 
-  async function sparqlQuery(query){
-    const endpoint = 'https://query.wikidata.org/sparql';
-    const body = new URLSearchParams(); body.set('query', query);
-    const res = await fetch(endpoint, { method:'POST', mode:'cors',
-      headers:{ 'Accept':'application/sparql-results+json','Content-Type':'application/x-www-form-urlencoded; charset=UTF-8' }, body });
-    if(!res.ok){ const text = await res.text().catch(()=>'' ); throw new Error('WDQS '+res.status+' '+text.slice(0,120)); }
-    return await res.json();
-  }
-
-  async function fetchWDFromTerms(terms){
-    const data = await sparqlQuery(buildSPARQLFromTerms(terms));
+    const data = await sparqlQuery(q);
     const rows = data.results.bindings || [];
     return rows.map(r=>{
       const name = r.entityLabel?.value || 'Untitled';
-      const raw = r.image?.value || '';
-      let fileTitle = 'File:';
-      let imageUrl = '';
-      if (raw.includes('Special:FilePath/')){
-        imageUrl = raw + (raw.includes('?')? '&' : '?') + 'width=1600';
-        try{ fileTitle = 'File:' + decodeURIComponent(raw.split('Special:FilePath/')[1].split('?')[0]); }catch{}
+      let raw = r.image?.value || '';
+      let imageUrl = '', fileTitle = 'File:';
+      if(raw.includes('Special:FilePath/')){
+        imageUrl = raw + (raw.includes('?')? '&':'?') + 'width=1600';
+        try{ fileTitle += decodeURIComponent(raw.split('Special:FilePath/')[1].split('?')[0]); }catch{}
       } else {
         let fn = raw;
-        try{ if(fn.startsWith('http')){ const u = new URL(fn); fn = decodeURIComponent(u.pathname.split('/').pop()); }}catch{}
+        try{ if(fn.startsWith('http')){ const u=new URL(fn); fn=decodeURIComponent(u.pathname.split('/').pop()); } }catch{}
         fn = fn.replace(/^.*File:/,''); if(!fn) return null;
         imageUrl = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(fn) + '?width=1600';
         fileTitle = 'File:'+fn;
       }
       const itemUrl = r.entity?.value || '#';
-      return { name, imageUrl, fileTitle, itemUrl };
+      return { name, imageUrl, fileTitle, itemUrl, __cat: term };
     }).filter(Boolean);
   }
 
-  // Auto-apply with debounce
-  let applyTimer=null;
-  function debouncedApply(){ clearTimeout(applyTimer); applyTimer = setTimeout(applySelection, 400); }
-  async function applySelection(){
-    const chosen = [];
-    [0,1,2].forEach(i=> catGrids[i].grid.querySelectorAll('.termBtn.selected').forEach(b=> chosen.push(b.dataset.term||b.textContent.trim())));
-    if(!chosen.length){
-      items=[]; currIndex=-1; countBadge.textContent='0';
-      imgwrap.innerHTML = '<div style="opacity:.7">Select categories on Page 2–4.</div>';
-      return;
-    }
-    countBadge.textContent='Fetching…';
-    try{
-      let data = await fetchWDFromTerms(chosen);
-      data = data.sort(()=>Math.random()-0.5);
-      items = data;
-      countBadge.textContent = `${items.length} photos`;
-      if(!items.length) return;
-      setPage(1);
-      stopAutoplay(); showIndex(0); startAutoplay();
-    }catch(e){
-      countBadge.textContent='0';
-      toast.textContent='Fetch error: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1800);
-    }
+  function interleaveBuckets(buckets){
+    const shuffled = buckets.map(arr => arr.sort(()=>Math.random()-0.5));
+    const out=[]; let added=true; let i=0;
+    while(added){ added=false; for(let b=0;b<shuffled.length;b++){ const pick=shuffled[b][i]; if(pick){ out.push(pick); added=true; } } i++; }
+    return out.sort(()=>Math.random()-0.5);
   }
 
-  // Populate defaults + auto-select Norwegian celebs
-  (function populate(){
-    const lists=[catGrids[0].grid,catGrids[1].grid,catGrids[2].grid];
-    const presets = [
-      'Norwegian celebs','Beatles','US celebrities','Norwegian politicians','Norwegian CEO','US CEO','World CEO','Music producers',
-      "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters','objects','household objects','clutter home objects','cars',
-      'actors 2025','singers 2024','bands 2024','scientists','historical figures in science','historical leaders','historical pioneers','cars of 2010','cars of 2025'
-    ];
-    presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16),2); makeTermButton(p, lists[gi]); });
-    Array.from(lists[0].children).forEach(b=>{ if(b.dataset.term==='Norwegian celebs') b.classList.add('selected'); });
-  })();
+  async function fetchAttribution(fileTitle){
+    try{
+      const url='https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles='+encodeURIComponent(fileTitle);
+      const res=await fetch(url); const data=await res.json();
+      const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null;
+      const info = page?.imageinfo?.[0];
+      const meta = info?.extmetadata || {};
+      const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/'+encodeURIComponent(fileTitle));
+      return { filePageUrl };
+    }catch(_){ return { filePageUrl:'#' }; }
+  }
 
-  // Add custom category
-  [0,1,2].forEach(i=>{
-    const g=catGrids[i]; if(!g) return;
-    g.add?.addEventListener('click', ()=>{
-      const v=(g.input.value||'').trim(); if(!v) return;
-      makeTermButton(v, g.grid).classList.add('selected');
-      g.input.value=''; debouncedApply();
-    });
+  // Slideshow
+  let currentImg=null;
+  function swapIn(img){
+    const prev=currentImg;
+    currentImg=img; currentImg.classList.add('photo','show');
+    imgwrap.appendChild(currentImg);
+    if(prev){ prev.addEventListener('transitionend', ()=>{ try{ imgwrap.removeChild(prev); }catch{} }, {once:true}); prev.classList.remove('show'); }
+  }
+
+  async function showIndex(i){
+    if(!items.length) return;
+    currIndex = (i + items.length) % items.length;
+    const it = items[currIndex];
+    const img = new Image(); img.decoding='async'; img.referrerPolicy='no-referrer';
+    img.onload = async ()=>{
+      swapIn(img);
+      entityName.textContent = it.name;
+      nameOverlay.classList.add('collapsed');
+      const att = await fetchAttribution(it.fileTitle).catch(()=>({filePageUrl:'#'}));
+      currentLink = it.itemUrl && it.itemUrl!=='#' ? it.itemUrl : att.filePageUrl || '#';
+      downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,'');
+      setTimeout(()=>{ const shouldShow = (!globalHideNames) || perSlideReveal; if(shouldShow) nameOverlay.classList.remove('collapsed'); perSlideReveal=false; }, nameDelay);
+    };
+    img.onerror = ()=> next(); // skip failed
+    img.src = it.imageUrl;
+  }
+  function next(){ showIndex((currIndex+1)%items.length); }
+  function prev(){ showIndex((currIndex-1+items.length)%items.length); }
+
+  function startAutoplay(){ if(timer) clearInterval(timer); timer=setInterval(next, Math.max(0.1,slideSeconds)*1000); autoplay=true; cornerPlayStop.classList.add('playing'); }
+  function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.classList.remove('playing'); }
+
+  // Hotkeys
+  function isTyping(t){ const tag=(t?.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t?.isContentEditable; }
+  document.addEventListener('keydown', (e)=>{ if(isTyping(e.target)) return;
+    const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now;
+    const key=(e.key||'').toLowerCase();
+    if(e.code==='Space'||key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; }
+    if(key==='s'){ e.preventDefault(); globalHideNames=!globalHideNames; nameOverlay.classList.toggle('collapsed', globalHideNames); hideAllNamesBtn.textContent=globalHideNames?'Show':'Hide'; return; }
+    if(key==='arrowleft'){ e.preventDefault(); stopAutoplay(); prev(); return; }
+    if(key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; }
   });
 
-  // Initial apply
-  debouncedApply();
+  // Stage clicks
+  document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
+  document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
+  nextPhotoBtn.addEventListener('click', ()=>{ stopAutoplay(); next(); });
+  cornerPlayStop.addEventListener('click', ()=>{ if(autoplay) stopAutoplay(); else startAutoplay(); });
+  hideAllNamesBtn.addEventListener('click', ()=>{ globalHideNames=!globalHideNames; nameOverlay.classList.toggle('collapsed', globalHideNames); hideAllNamesBtn.textContent=globalHideNames?'Show':'Hide'; });
+  showThisNameBtn.addEventListener('click', ()=>{ if(globalHideNames){ perSlideReveal=true; nameOverlay.classList.remove('collapsed'); } });
+  openLinkHeader.addEventListener('click', ()=>{ if(currentLink && currentLink!=='#') window.open(currentLink, '_blank', 'noopener'); });
 
-  // Swipe page nav (mobile)
-  let s=null;
-  document.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; s={x:t.clientX,y:t.clientY}; }, {passive:true});
-  document.addEventListener('touchend', e=>{
-    if(!s) return; const t=e.changedTouches[0];
-    const dx=t.clientX-s.x, dy=t.clientY-s.y;
-    if(Math.abs(dx)>40 && Math.abs(dy)<60){
-      const idx = activeIndex();
-      if(dx<0 && idx<5) setPage(idx+1);
-      if(dx>0 && idx>1) setPage(idx-1);
+  // Settings (slide speed & name delay)
+  function clampStep(x){ return Math.round(x*5)/5; } // 0.2s steps
+  function updateSpeedDisplay(){ document.getElementById('fineTotal').textContent = (Math.max(0.1,slideSeconds)).toFixed(1)+'s'; }
+  function updateNameDisplay(){ document.getElementById('nameTotal').textContent = (nameDelay/1000).toFixed(1)+'s'; }
+  document.querySelectorAll('[data-speed]').forEach(b=> b.addEventListener('click', ()=>{
+    const d = parseFloat(b.dataset.speed); slideSeconds = clampStep((slideSeconds||2)+d); updateSpeedDisplay(); if(autoplay) startAutoplay();
+  }));
+  document.querySelectorAll('[data-nd]').forEach(b=> b.addEventListener('click', ()=>{
+    const d = parseFloat(b.dataset.nd); const val = Math.max(0, (nameDelay/1000)+d); nameDelay = Math.round(clampStep(val)*1000); updateNameDisplay();
+  }));
+  updateSpeedDisplay(); updateNameDisplay();
+
+  // Export/Import/Reset
+  const exportBtn = document.getElementById('exportBtn');
+  const importBtn = document.getElementById('importBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const jsonBox = document.getElementById('jsonBox');
+
+  function gatherTiles(){ const tiles=[]; catGrids.forEach(g=> g.grid.querySelectorAll('.termBtn').forEach(b=> tiles.push({label:b.dataset.term||b.textContent.trim(), selected:b.classList.contains('selected')}))); return tiles; }
+  function renderFromTiles(tiles){ catGrids.forEach(g=> g.grid.innerHTML=''); tiles.forEach((t,i)=>{ const gi=Math.min(Math.floor(i/16), catGrids.length-1); const b=makeTermButton(t.label, catGrids[gi].grid); if(t.selected) b.classList.add('selected'); }); ensureMinTiles(); attachAddHandlers(); }
+  exportBtn.addEventListener('click', ()=>{ jsonBox.value = JSON.stringify({version:4, tiles:gatherTiles()}, null, 2); toast.textContent='Exported categories.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1000); });
+  importBtn.addEventListener('click', ()=>{ try{ const obj=JSON.parse(jsonBox.value||'{}'); if(!Array.isArray(obj.tiles)) throw new Error('Invalid JSON'); renderFromTiles(obj.tiles.map(x=>({label:x.label, selected:!!x.selected}))); debouncedApply(); }catch(e){ toast.textContent='Import failed: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1600); } });
+  resetBtn.addEventListener('click', ()=>{ populateDefaults(); debouncedApply(); });
+
+  // Apply selection with fair mixing
+  async function applySelection(){
+    const chosen=[]; catGrids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=>{ const t=b.dataset.term||b.textContent.trim(); if(t) chosen.push(t); }));
+    if(!chosen.length){ items=[]; currIndex=-1; countBadge.textContent='0'; imgwrap.innerHTML='<div class="hint" style="opacity:.7">Select categories on Pages 2–4.</div>'; return; }
+    countBadge.textContent='Fetching…';
+    try{
+      const MAX_PAR = 3;
+      const buckets=[];
+      for(let i=0;i<chosen.length;i+=MAX_PAR){
+        const slice=chosen.slice(i,i+MAX_PAR);
+        const res=await Promise.all(slice.map(fetchForSingleTerm));
+        buckets.push(...res);
+      }
+      const mixed = interleaveBuckets(buckets);
+      items = mixed;
+      countBadge.textContent = String(items.length)+' photos';
+      if(!items.length) return;
+      setPage(1); stopAutoplay(); showIndex(0); startAutoplay();
+    }catch(e){
+      countBadge.textContent='0'; toast.textContent='Fetch error: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1800);
     }
-    s=null;
-  }, {passive:true});
+  }
+  const debouncedApply = (()=>{ let t=null; return ()=>{ clearTimeout(t); t=setTimeout(applySelection, 180); }; })();
+
+  // Init
+  populateDefaults();
+  // Auto-select Norwegian celebs on first run
+  const auto = Array.from(catGrids[0].grid.querySelectorAll('.termBtn')).find(b=>/Norwegian celebs/i.test(b.dataset.term||b.textContent));
+  if(auto) auto.classList.add('selected');
+  applySelection();
 })();
 </script>
 </body>
 </html>
+
