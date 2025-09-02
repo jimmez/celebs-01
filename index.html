@@ -1,151 +1,531 @@
-<!-- v24 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Celeb Slideshow v24</title>
+<title>Slideshow v25 — Wikidata/Commons</title>
+<meta name="description" content="Slideshow that auto-fetches photos from Wikidata/Commons. Safe categories, balanced mixing, seamless swaps, swipe/arrow pages, JSON-free presets. Defaults: 5s slide / 3s name reveal." />
 <style>
-  :root { --bg:#0b0f14; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; }
-  body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--fg);display:grid;grid-template-rows:auto 1fr auto;height:100vh}
-  header{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#111827}
-  h1{font-size:16px;margin:0}
+  :root { --bg:#0b0f14; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --panel:#0f172a; --muted:#93a3b8; }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto auto 1fr auto}
+  header{display:flex; align-items:center; gap:10px; padding:10px 12px; background:#111827; position:sticky; top:0; z-index:50}
+  h1{font-size:16px; margin:0}
   .sp{flex:1}
-  .iconBtn{padding:6px 12px;border-radius:8px;background:#1f2937;color:#fff;cursor:pointer}
-  .badge{font-size:12px;padding:2px 6px;border:1px solid #555;border-radius:6px}
-  nav{display:flex;overflow-x:auto;background:#0f172a}
-  .tab{padding:8px 12px;cursor:pointer}
-  .tab[aria-selected="true"]{background:#1f2937;border-bottom:2px solid var(--accent)}
-  .page{display:none;height:100%}
+  .iconBtn{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer}
+  .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
+
+  nav.tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:#0f172a; overflow:auto}
+  .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap}
+  .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.6)}
+  .page{display:none; height:100%}
   .page.active{display:block}
-  .stageWrap{display:grid;grid-template-columns:90px 1fr;height:100%}
-  .leftRail{display:grid;grid-auto-rows:min-content;gap:10px;padding:10px;background:rgba(59,130,246,.15)}
-  .btn{padding:10px;border-radius:8px;background:#1f2937;color:#fff;cursor:pointer;font-weight:bold}
-  .btn.playing{background:rgba(52,211,153,.3)}
-  #showThisName,#nextPhoto{height:120px}
-  .stage{position:relative;display:grid;place-items:center;overflow:hidden}
-  img.photo{max-width:88vw;max-height:72vh;object-fit:contain;border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,.6);opacity:0;transition:opacity .2s}
+
+  /* Page 1 layout */
+  .stageWrap{display:grid; grid-template-columns:95px 1fr; height:calc(100vh - 200px); min-height:360px}
+  .leftRail{display:grid; grid-auto-rows:min-content; align-content:start; gap:10px; padding:10px; background:rgba(59,130,246,.14)}
+  .btn{padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:#1f2937; color:#fff; cursor:pointer; font-weight:700}
+  .btn.playing{background:rgba(52,211,153,.28); border-color:rgba(52,211,153,.6)}
+  #showThisName, #nextPhoto{height:120px} /* big stacked */
+  .stage{position:relative; display:grid; place-items:center; overflow:hidden; background:transparent}
+  .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center}
+  img.photo{max-width:88vw; max-height:74vh; object-fit:contain; border-radius:16px; box-shadow:0 12px 32px rgba(0,0,0,.55); opacity:0; transition:opacity .18s ease}
   img.photo.show{opacity:1}
-  .nameOverlay{position:absolute;left:50%;bottom:5%;transform:translateX(-50%);background:rgba(0,0,0,.7);padding:10px 14px;border-radius:12px;text-align:center}
+
+  /* Name overlay: bottom ~30% coverage possible, centered */
+  .nameOverlay{position:absolute; left:50%; bottom:6%; transform:translateX(-50%); background:rgba(0,0,0,.72); border:1px solid rgba(255,255,255,.1); padding:12px 16px; border-radius:14px; text-align:center; max-width:min(92%, 880px)}
   .nameOverlay.collapsed{display:none}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-  .termBtn{padding:10px;background:#1f2937;border-radius:8px;cursor:pointer}
-  .termBtn.selected{outline:2px solid var(--accent)}
-  footer{padding:8px 12px;font-size:12px;background:#111827}
+  .title{font-size:22px; font-weight:800}
+
+  /* Link under gear, top-right corner paragraph */
+  .topRight{position:relative}
+  #openLink{margin-left:6px; padding:6px 10px; border-radius:10px; background:#1f2937; border:1px solid rgba(255,255,255,.12); color:#fff; cursor:pointer}
+
+  /* Category grids */
+  .builder{padding:12px}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
+  .termBtn{padding:12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
+  .termBtn.selected{outline:2px solid var(--accent); background:#1f2937}
+  .termBtn.editing{outline:2px dashed #fbbf24}
+
+  .rowActions{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap}
+  .btn.small{padding:8px 10px; border-radius:10px}
+
+  footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); background:#111827}
+  footer a{color:var(--ok); text-decoration:none}
+
+  @media (max-width: 768px){
+    .stageWrap{grid-template-columns:84px 1fr}
+    #showThisName, #nextPhoto{height:100px}
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>🎞️ Slideshow</h1>
-  <span id="countBadge" class="badge">—</span>
-  <div class="sp"></div>
-  <button id="gearBtn" class="iconBtn">⚙️</button>
-</header>
-
-<nav>
-  <button id="tab1" class="tab" aria-selected="true">Page 1</button>
-  <button id="tab2" class="tab">Page 2</button>
-  <button id="tab3" class="tab">Page 3</button>
-  <button id="tab4" class="tab">Page 4</button>
-  <button id="tab5" class="tab">Page 5</button>
-</nav>
-
-<main>
-  <!-- Page 1 -->
-  <section id="page1" class="page active">
-    <div class="stageWrap">
-      <div class="leftRail">
-        <button id="hideAllNames" class="btn">Hide</button>
-        <button id="cornerPlayStop" class="btn">▶️</button>
-        <button id="showThisName" class="btn">Show</button>
-        <button id="nextPhoto" class="btn">Next</button>
-      </div>
-      <div class="stage">
-        <div id="imgwrap"></div>
-        <div id="nameBar" class="nameOverlay"><div id="entityName"></div></div>
-      </div>
+  <header>
+    <h1>🎞️ Slideshow (v25)</h1>
+    <span class="badge" id="countBadge">0 photos</span>
+    <div class="sp"></div>
+    <div class="topRight">
+      <button class="iconBtn" id="gearBtn" title="Settings (open/close)">⚙️</button>
+      <button class="iconBtn" id="openLink" title="Open item/file page">🔗</button>
     </div>
-  </section>
+  </header>
 
-  <!-- Page 2: Occupations -->
-  <section id="page2" class="page">
-    <div class="grid" id="grid2"></div>
-    <button id="clearAll2" class="btn">Clear All</button>
-  </section>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-controls="page1" aria-selected="true" id="tab1">Page 1: Slideshow</button>
+    <button class="tab" role="tab" aria-controls="page2" aria-selected="false" id="tab2">Page 2: Occupations</button>
+    <button class="tab" role="tab" aria-controls="page3" aria-selected="false" id="tab3">Page 3: Nationalities</button>
+    <button class="tab" role="tab" aria-controls="page4" aria-selected="false" id="tab4">Page 4: Characters & Objects</button>
+    <button class="tab" role="tab" aria-controls="page5" aria-selected="false" id="tab5">Page 5: Settings</button>
+  </nav>
 
-  <!-- Page 3: Nationalities -->
-  <section id="page3" class="page">
-    <div class="grid" id="grid3"></div>
-    <button id="clearAll3" class="btn">Clear All</button>
-  </section>
+  <main>
+    <!-- Page 1 -->
+    <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
+      <div class="stageWrap">
+        <div class="leftRail">
+          <button id="hideAllNames" class="btn small">Hide</button>
+          <button id="cornerPlayStop" class="btn">▶️</button>
+          <button id="showThisName" class="btn">Show</button>
+          <button id="nextPhoto" class="btn">Next</button>
+        </div>
+        <div class="stage">
+          <div class="imgwrap" id="imgwrap"></div>
+          <div class="nameOverlay collapsed" id="nameBar">
+            <div class="title" id="entityName">&nbsp;</div>
+          </div>
+          <!-- Tap zones (mobile next/prev without covering left rail) -->
+          <div style="position:absolute; inset:0; display:grid; grid-template-columns:95px 1fr">
+            <div></div>
+            <div style="position:relative">
+              <div id="zonePrev" style="position:absolute;left:0;top:0;bottom:0;width:35%"></div>
+              <div id="zoneNext" style="position:absolute;right:0;top:0;bottom:0;width:65%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-  <!-- Page 4: Characters/Objects -->
-  <section id="page4" class="page">
-    <div class="grid" id="grid4"></div>
-    <button id="clearAll4" class="btn">Clear All</button>
-  </section>
+    <!-- Page 2: Occupations -->
+    <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
+      <div class="builder">
+        <div class="grid" id="gridOcc"></div>
+        <div class="rowActions">
+          <button class="btn small" id="clearAll2" title="Clear all selections">Clear All</button>
+          <button class="btn small" id="applyBtn2" title="Apply (fetch)">Apply</button>
+        </div>
+      </div>
+    </section>
 
-  <!-- Page 5: Settings -->
-  <section id="page5" class="page">
-    <div><strong>Slide speed</strong></div>
-    <input id="speedInput" type="number" step="0.2" min="0.2" value="5"> seconds
-    <div><strong>Name reveal delay</strong></div>
-    <input id="revealInput" type="number" step="0.2" min="0.2" value="3"> seconds
-  </section>
-</main>
+    <!-- Page 3: Nationalities -->
+    <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
+      <div class="builder">
+        <div class="grid" id="gridNat"></div>
+        <div class="rowActions">
+          <button class="btn small" id="clearAll3">Clear All</button>
+          <button class="btn small" id="applyBtn3">Apply</button>
+        </div>
+      </div>
+    </section>
 
-<footer>
-  PC: → / ← changes pages. Space = Play/Pause. Alt+C = Clear All.
-</footer>
+    <!-- Page 4: Characters & Objects -->
+    <section id="page4" class="page" role="tabpanel" aria-labelledby="tab4">
+      <div class="builder">
+        <div class="grid" id="gridObj"></div>
+        <div class="rowActions">
+          <button class="btn small" id="clearAll4">Clear All</button>
+          <button class="btn small" id="applyBtn4">Apply</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Page 5: Settings (timing controls only) -->
+    <section id="page5" class="page" role="tabpanel" aria-labelledby="tab5">
+      <div class="builder" style="max-width:720px; display:grid; gap:12px">
+        <div><strong>Slide speed</strong> (seconds)</div>
+        <input id="speedInput" type="number" step="0.2" min="0.2" value="5" />
+        <div><strong>Name reveal delay</strong> (seconds)</div>
+        <input id="revealInput" type="number" step="0.2" min="0" value="3" />
+        <div class="rowActions">
+          <button class="btn small" id="applySettings">Apply settings</button>
+          <span id="settingsNote" style="color:#9fb7d6"></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div>
+      PC: <kbd>→</kbd>/<kbd>←</kbd> changes pages, <kbd>Space</kbd> = Play/Pause, <kbd>Alt</kbd>+<kbd>C</kbd> = Clear All. 
+      Mobile: swipe left/right to switch pages; tap left/right of photo for prev/next. Triple-click a tile to rename it.
+    </div>
+    <div class="sp"></div>
+    <a href="#" id="downloadLink" title="Download current image">Download</a>
+  </footer>
 
 <script>
-const tabs=[1,2,3,4,5].map(i=>document.getElementById("tab"+i));
-const pages=[1,2,3,4,5].map(i=>document.getElementById("page"+i));
-function setPage(i){pages.forEach((p,idx)=>p.classList.toggle("active",idx===i-1));tabs.forEach((t,idx)=>t.setAttribute("aria-selected",idx===i-1));}
-tabs.forEach((t,i)=>t.addEventListener("click",()=>setPage(i+1)));
-document.getElementById("gearBtn").onclick=()=>{const i=pages.findIndex(p=>p.classList.contains("active"));setPage(i===4?1:5)}
+(function(){
+  /* ---------- Tabs / Pages ---------- */
+  const tabs=[1,2,3,4,5].map(i=>({tab:document.getElementById('tab'+i),page:document.getElementById('page'+i)}));
+  function activePageIndex(){ return tabs.findIndex(t=> t.page.classList.contains('active')); }
+  function setPage(idx){
+    tabs.forEach((t,i)=>{ const on=(i===idx-1); t.page.classList.toggle('active', on); t.tab.setAttribute('aria-selected', String(on)); });
+  }
+  tabs.forEach((t,i)=> t.tab.addEventListener('click',()=> setPage(i+1)));
+  const gearBtn=document.getElementById('gearBtn');
+  gearBtn.addEventListener('click', ()=>{ const i=activePageIndex()+1; setPage(i===5?1:5); });
 
-// categories
-const occ=["Actors","Singers","Musicians","Writers","Models","Politicians","Directors","Comedians","Scientists","Inventors","Historical figures"];
-const nat=["Norwegian","Swedish","Danish","German","French","Spanish","British","American"];
-const obj=["Famous movie characters","Famous cartoon characters","Superheroes","Video game characters","Cars","Musical instruments","Tools","Household appliances"];
+  // Arrow keys move pages (PC)
+  document.addEventListener('keydown', (e)=>{
+    if(e.target && (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA')) return;
+    if(e.key==='ArrowRight'){ const i=activePageIndex()+1; if(i<5) setPage(i+1); }
+    if(e.key==='ArrowLeft'){ const i=activePageIndex()+1; if(i>1) setPage(i-1); }
+  });
 
-function makeBtn(label,grid){let b=document.createElement("button");b.className="termBtn";b.textContent=label;b.onclick=()=>b.classList.toggle("selected");let clicks=0;b.addEventListener("click",()=>{clicks++;if(clicks>=3){clicks=0;let input=document.createElement("input");input.value=label;b.innerHTML="";b.appendChild(input);input.focus();input.onblur=()=>{label=input.value;b.textContent=label};}});grid.appendChild(b);}
-occ.forEach(c=>makeBtn(c,document.getElementById("grid2")));
-nat.forEach(c=>makeBtn(c,document.getElementById("grid3")));
-obj.forEach(c=>makeBtn(c,document.getElementById("grid4")));
+  /* ---------- Categories (safe presets) ---------- */
+  // Occupations (Wikidata Q-ids)
+  const OCC = {
+    'Actors':'Q33999','Singers':'Q177220','Musicians':'Q639669','Writers':'Q36180','Models':'Q4610556',
+    'Politicians':'Q82955','Directors':'Q2526255','Comedians':'Q245068','Scientists':'Q901','Inventors':'Q131524',
+    'Historical figures': null // broad catch-all (no strict filter; relies on nationality/time if provided)
+  };
+  // Nationalities (country Q-ids)
+  const NAT = {
+    'Norwegian':'Q20','Swedish':'Q34','Danish':'Q35','German':'Q183','French':'Q142','Spanish':'Q29','British':'Q145','American':'Q30'
+  };
+  // Characters/Objects/Tools buckets
+  const OBJ = [
+    'Famous movie characters','Famous cartoon characters','Superheroes','Video game characters',
+    'Cars','Musical instruments','Tools','Household appliances'
+  ];
 
-function clearAll(){document.querySelectorAll(".termBtn.selected").forEach(b=>b.classList.remove("selected"));}
-document.getElementById("clearAll2").onclick=clearAll;
-document.getElementById("clearAll3").onclick=clearAll;
-document.getElementById("clearAll4").onclick=clearAll;
+  const gridOcc=document.getElementById('gridOcc');
+  const gridNat=document.getElementById('gridNat');
+  const gridObj=document.getElementById('gridObj');
 
-// slideshow basics
-let items=[],curr=0,autoplay=false,timer=null;
-const imgwrap=document.getElementById("imgwrap"),nameBar=document.getElementById("nameBar"),entityName=document.getElementById("entityName");
-function show(i){if(!items.length)return;curr=(i+items.length)%items.length;let it=items[curr];let img=new Image();img.onload=()=>{img.className="photo show";imgwrap.innerHTML="";imgwrap.appendChild(img);entityName.textContent=it;nameBar.classList.add("collapsed");setTimeout(()=>nameBar.classList.remove("collapsed"),revealDelay*1000)};img.src="https://picsum.photos/800/600?random="+Math.random();}
-function next(){show(curr+1)}function prev(){show(curr-1)}
-function start(){if(timer)clearInterval(timer);timer=setInterval(next,slideSeconds*1000);autoplay=true;playBtn.textContent="⏹";playBtn.classList.add("playing");}
-function stop(){clearInterval(timer);autoplay=false;playBtn.textContent="▶️";playBtn.classList.remove("playing");}
-let slideSeconds=5,revealDelay=3;
-document.getElementById("speedInput").oninput=e=>slideSeconds=parseFloat(e.target.value)||5;
-document.getElementById("revealInput").oninput=e=>revealDelay=parseFloat(e.target.value)||3;
-const playBtn=document.getElementById("cornerPlayStop");
-playBtn.onclick=()=>autoplay?stop():start();
-document.getElementById("hideAllNames").onclick=()=>nameBar.classList.toggle("collapsed");
-document.getElementById("showThisName").onclick=()=>nameBar.classList.remove("collapsed");
-document.getElementById("nextPhoto").onclick=()=>{stop();next()};
+  function makeTile(label, gridEl){
+    const btn=document.createElement('button');
+    btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0';
+    btn.addEventListener('click', ()=>{
+      const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c);
+      if(c>=3){ // rename
+        btn.dataset.clicks='0'; btn.classList.add('editing');
+        const prev=btn.dataset.term; const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%';
+        input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); }});
+        input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); });
+        btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return;
+      }
+      btn.classList.toggle('selected'); // select/deselect
+      setTimeout(()=>{ btn.dataset.clicks='0'; }, 350);
+    });
+    gridEl.appendChild(btn);
+    return btn;
+  }
 
-// demo items
-items=["Demo 1","Demo 2","Demo 3"];show(0);
+  Object.keys(OCC).forEach(k=> makeTile(k, gridOcc));
+  Object.keys(NAT).forEach(k=> makeTile(k, gridNat));
+  OBJ.forEach(k=> makeTile(k, gridObj));
 
-// keys
-document.addEventListener("keydown",e=>{
- if(e.code==="Space"){e.preventDefault();autoplay?stop():start();}
- if(e.altKey&&e.key.toLowerCase()==="c"){clearAll();}
- if(e.key==="ArrowRight"){let i=pages.findIndex(p=>p.classList.contains("active"));if(i<4)setPage(i+2);}
- if(e.key==="ArrowLeft"){let i=pages.findIndex(p=>p.classList.contains("active"));if(i>0)setPage(i);}
-});
+  function selectedTerms(){
+    const els=[...document.querySelectorAll('.termBtn.selected')];
+    return els.map(b=> b.dataset.term || b.textContent.trim()).filter(Boolean);
+  }
+
+  function clearAll(){
+    document.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected'));
+    items=[]; currIndex=-1; setCount(0); stopAutoplay();
+  }
+
+  document.getElementById('clearAll2').onclick=clearAll;
+  document.getElementById('clearAll3').onclick=clearAll;
+  document.getElementById('clearAll4').onclick=clearAll;
+  document.addEventListener('keydown', (e)=>{ if(e.altKey && e.key.toLowerCase()==='c'){ e.preventDefault(); clearAll(); } });
+
+  // Apply buttons on each page
+  document.getElementById('applyBtn2').onclick=applySelection;
+  document.getElementById('applyBtn3').onclick=applySelection;
+  document.getElementById('applyBtn4').onclick=applySelection;
+
+  /* ---------- Timing settings ---------- */
+  let slideSeconds = 5; // default
+  let nameDelay = 3000; // ms, default 3s
+  const speedInput=document.getElementById('speedInput');
+  const revealInput=document.getElementById('revealInput');
+  const applySettings=document.getElementById('applySettings');
+  applySettings.onclick = ()=>{
+    const s = Math.max(0.2, +speedInput.value || 5);
+    const n = Math.max(0, +revealInput.value || 3);
+    slideSeconds = s; nameDelay = Math.round(n*1000);
+    document.getElementById('settingsNote').textContent = `Applied: slide ${s.toFixed(1)}s, reveal ${n.toFixed(1)}s.`;
+    if(autoplay) startAutoplay(); // restart with new timing
+  };
+
+  /* ---------- Fetching / SPARQL ---------- */
+  // Helpers to build SPARQL blocks. We unify ?entity so people or things both work.
+  function H(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . BIND(?person AS ?entity) }`; }
+  function F(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} BIND(?person AS ?entity) }`; }
+  function T(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . BIND(?thing AS ?entity) }`; }
+
+  function blockForPreset(label){
+    // Occupations
+    if(OCC[label] !== undefined){
+      const occ = OCC[label];
+      if(!occ){ // 'Historical figures' broad: just humans with images
+        return H([]);
+      }
+      return H([ `wdt:P106 wd:${occ} ;` ]);
+    }
+    // Nationalities alone (if user selects only nationality)
+    if(NAT[label]){
+      const cc = NAT[label];
+      return H([ `wdt:P27 wd:${cc} ;` ]);
+    }
+    // Characters / Objects
+    if(label==='Famous movie characters') return F([ ' ?person wdt:P31 wd:Q15773347 . ' ]);
+    if(label==='Famous cartoon characters') return F([ ' { ?person wdt:P31 wd:Q15711870 . } UNION { ?person wdt:P31 wd:Q373494 . } ' ]);
+    if(label==='Superheroes') return F([ ' ?person wdt:P31 wd:Q188784 . ' ]);
+    if(label==='Video game characters') return F([ ' ?person wdt:P31 wd:Q95074 . ' ]);
+    if(label==='Cars') return T([ ' { ?thing wdt:P31 wd:Q3231690 . } ' ]);
+    if(label==='Musical instruments') return T([ ' ?thing wdt:P31/wdt:P279* wd:Q34379 . ' ]);
+    if(label==='Tools') return T([ ' ?thing wdt:P31/wdt:P279* wd:Q39546 . ' ]);
+    if(label==='Household appliances') return T([ ' ?thing wdt:P31/wdt:P279* wd:Q319541 . ' ]);
+    return null;
+  }
+
+  // Flexible parser for manual combos like "French actors 1950-1970" or "Cars 1980-1990"
+  function dynamicBlock(term){
+    const t = (term||'').trim().toLowerCase();
+    if(!t) return null;
+    // extract optional year range like 1980-1990
+    const m = t.match(/(\d{3,4})\s*[-–]\s*(\d{3,4})$/);
+    const y1 = m ? parseInt(m[1],10) : null;
+    const y2 = m ? parseInt(m[2],10) : null;
+    const core = m ? t.replace(m[0],'').trim() : t;
+
+    // nationality + occupation
+    const natKey = Object.keys(NAT).map(k=>k.toLowerCase()).find(k=> core.includes(k));
+    const occKey = Object.keys(OCC).map(k=>k.toLowerCase()).find(k=> core.includes(k));
+    // objects classes
+    const isCars = /(^|\s)car(s)?($|\s)/.test(core);
+    const isTools = /tool(s)?/.test(core);
+    const isInstruments = /instrument(s)?/.test(core);
+    const isAppliances = /appliance(s)?/.test(core);
+    const isMovieChar = /movie character/.test(core);
+    const isCartoonChar = /cartoon character/.test(core);
+    const isSuperhero = /superhero/.test(core);
+    const isVGChar = /video game character/.test(core);
+
+    // Build for people
+    if(natKey || occKey){
+      const lines=[];
+      if(natKey){ lines.push(` wdt:P27 wd:${NAT[Object.keys(NAT).find(k=>k.toLowerCase()===natKey)]} ;`); }
+      if(occKey && OCC[Object.keys(OCC).find(k=>k.toLowerCase()===occKey)]){ lines.push(` wdt:P106 wd:${OCC[Object.keys(OCC).find(k=>k.toLowerCase()===occKey)]} ;`); }
+      let block = H(lines);
+      // add birth year filter if range is present
+      if(y1 && y2){
+        block = block.replace(' BIND(?person AS ?entity) }',
+          ` OPTIONAL { ?person wdt:P569 ?birth . }
+            FILTER(BOUND(?birth) && year(?birth) >= ${y1} && year(?birth) <= ${y2})
+            BIND(?person AS ?entity) }`);
+      }
+      return block;
+    }
+
+    // Objects / characters with year range
+    if(isCars || isTools || isInstruments || isAppliances || isMovieChar || isCartoonChar || isSuperhero || isVGChar){
+      if(isCars){
+        let b = T([ ' ?thing wdt:P31 wd:Q3231690 .' ]);
+        if(y1 && y2){
+          b = `{ ?thing wdt:P31 wd:Q3231690 . OPTIONAL { ?thing wdt:P571 ?inc . }
+                FILTER(BOUND(?inc) && year(?inc) >= ${y1} && year(?inc) <= ${y2})
+                wdt:P18 ?image . BIND(?thing AS ?entity) }`;
+        }
+        return b;
+      }
+      if(isTools) return T([ ' ?thing wdt:P31/wdt:P279* wd:Q39546 . ' ]);
+      if(isInstruments) return T([ ' ?thing wdt:P31/wdt:P279* wd:Q34379 . ' ]);
+      if(isAppliances) return T([ ' ?thing wdt:P31/wdt:P279* wd:Q319541 . ' ]);
+      if(isMovieChar) return F([ ' ?person wdt:P31 wd:Q15773347 . ' ]);
+      if(isCartoonChar) return F([ ' { ?person wdt:P31 wd:Q15711870 . } UNION { ?person wdt:P31 wd:Q373494 . } ' ]);
+      if(isSuperhero) return F([ ' ?person wdt:P31 wd:Q188784 . ' ]);
+      if(isVGChar) return F([ ' ?person wdt:P31 wd:Q95074 . ' ]);
+    }
+    return null;
+  }
+
+  function buildSPARQLUnion(blocks, limit=300){
+    const union = blocks.join('\nUNION\n');
+    return `SELECT ?entity ?entityLabel ?image WHERE {
+${union}
+SERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }
+}
+LIMIT ${limit}`;
+  }
+
+  async function sparqlQuery(query){
+    const endpoint='https://query.wikidata.org/sparql';
+    const body=new URLSearchParams(); body.set('query', query);
+    const res = await fetch(endpoint, { method:'POST', mode:'cors',
+      headers:{ 'Accept':'application/sparql-results+json','Content-Type':'application/x-www-form-urlencoded; charset=UTF-8' }, body });
+    if(!res.ok){ const t=await res.text().catch(()=> ''); throw new Error('WDQS '+res.status+' '+t.slice(0,120)); }
+    return await res.json();
+  }
+
+  function normalizeRow(r){
+    const name = r.entityLabel?.value || 'Untitled';
+    let imageField = r.image?.value || '';
+    let imageUrl = '';
+    if (imageField.includes('Special:FilePath/')){
+      imageUrl = imageField + (imageField.includes('?')? '&' : '?') + 'width=1600';
+    } else {
+      let fn = imageField;
+      try{ if(fn.startsWith('http')){ const u = new URL(fn); fn = decodeURIComponent(u.pathname.split('/').pop()); } }catch{}
+      fn = fn.replace(/^.*File:/,''); if(!fn) return null;
+      imageUrl = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(fn) + '?width=1600';
+      imageField = 'File:'+fn;
+    }
+    const fileTitle = imageField.startsWith('File:') ? imageField : ('File:'+imageField.replace(/^.*File:/,''));
+    const itemUrl = r.entity?.value || '#';
+    return { name, imageUrl, fileTitle, itemUrl };
+  }
+
+  async function fetchAttribution(fileTitle){
+    try{
+      const url='https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles='+encodeURIComponent(fileTitle);
+      const res=await fetch(url); const data=await res.json();
+      const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null;
+      const info = page?.imageinfo?.[0]; const meta = info?.extmetadata || {};
+      const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/'+encodeURIComponent(fileTitle));
+      return { filePageUrl };
+    }catch(e){ return { filePageUrl: 'https://commons.wikimedia.org/wiki/'+encodeURIComponent(fileTitle) }; }
+  }
+
+  /* ---------- Apply selection (balanced mixing) ---------- */
+  const countBadge=document.getElementById('countBadge');
+  function setCount(n){ countBadge.textContent = n? `${n} photos` : '0 photos'; }
+
+  let items=[]; let currIndex=-1; let autoplay=false; let timer=null; let currentLink='#';
+  const imgwrap=document.getElementById('imgwrap'); const nameBar=document.getElementById('nameBar'); const entityName=document.getElementById('entityName');
+
+  function roundRobin(arrays, maxTotal=600){
+    const out=[]; let added=0; let i=0;
+    const maxLen=Math.max(...arrays.map(a=>a.length));
+    while(added<maxTotal && i<maxLen){
+      for(const a of arrays){
+        if(a[i]){ out.push(a[i]); added++; if(added>=maxTotal) break; }
+      }
+      i++;
+    }
+    return out;
+  }
+
+  async function queryForTerm(term){
+    // Try preset block first, else dynamic parser
+    const preset = blockForPreset(term);
+    const dyn = preset ? null : dynamicBlock(term);
+    const block = preset || dyn;
+    if(!block) return [];
+    const q = buildSPARQLUnion([block], 220);
+    const data = await sparqlQuery(q);
+    const rows = data.results.bindings || [];
+    return rows.map(normalizeRow).filter(Boolean);
+  }
+
+  async function applySelection(){
+    const terms = selectedTerms();
+    if(!terms.length){ setPage(2); return; }
+    // fetch each bucket separately to ensure balanced interleave
+    const buckets=[];
+    for(const t of terms){
+      try{ const res = await queryForTerm(t); buckets.push(res); }catch(e){ console.warn('term failed', t, e); }
+    }
+    const mixed = roundRobin(buckets, 600);
+    if(!mixed.length){ setCount(0); return; }
+    // shuffle for randomness but keep RR balance fairly intact by chunking
+    items = mixed.sort(()=> Math.random()-0.5);
+    currIndex=-1; setCount(items.length);
+    setPage(1); showIndex(0); startAutoplay();
+  }
+
+  /* ---------- Slideshow controls ---------- */
+  let currentImg=null; let globalHide=false; let perSlideReveal=false;
+
+  function swapIn(img){
+    const prev=currentImg; currentImg=img; currentImg.classList.add('photo','show'); imgwrap.appendChild(currentImg);
+    if(prev){ prev.addEventListener('transitionend', ()=>{ try{ imgwrap.removeChild(prev); }catch{} }, {once:true}); prev.classList.remove('show'); }
+  }
+
+  async function showIndex(i){
+    if(!items.length) return;
+    currIndex = (i + items.length) % items.length;
+    const it = items[currIndex];
+    const img = new Image(); img.decoding='async'; img.referrerPolicy='no-referrer';
+    img.onload = async ()=>{
+      swapIn(img);
+      entityName.textContent = it.name;
+      nameBar.classList.add('collapsed'); // start hidden
+      // link priority: entity page, then file page
+      const att = await fetchAttribution(it.fileTitle).catch(()=>({filePageUrl:'#'}));
+      currentLink = it.itemUrl && it.itemUrl!=='#' ? it.itemUrl : (att.filePageUrl || '#');
+      setTimeout(()=>{
+        if(!globalHide || perSlideReveal){ nameBar.classList.remove('collapsed'); }
+        perSlideReveal = false;
+      }, nameDelay);
+      downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,'');
+    };
+    img.onerror = ()=>{ console.warn('image failed, skipping'); next(); };
+    img.src = it.imageUrl;
+  }
+  function next(){ showIndex((currIndex+1)%items.length); }
+  function prev(){ showIndex((currIndex-1+items.length)%items.length); }
+
+  function startAutoplay(){ if(timer) clearInterval(timer); timer=setInterval(next, (slideSeconds||2)*1000); autoplay=true; playBtn.textContent='⏹'; playBtn.classList.add('playing'); }
+  function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; playBtn.textContent='▶️'; playBtn.classList.remove('playing'); }
+
+  // Controls
+  const playBtn=document.getElementById('cornerPlayStop');
+  const hideBtn=document.getElementById('hideAllNames');
+  const showBtn=document.getElementById('showThisName');
+  const nextBtn=document.getElementById('nextPhoto');
+  const openLinkBtn=document.getElementById('openLink');
+  const downloadLink=document.getElementById('downloadLink');
+
+  playBtn.onclick=()=> autoplay? stopAutoplay() : startAutoplay();
+  hideBtn.onclick=()=>{ globalHide = !globalHide; nameBar.classList.toggle('collapsed', globalHide); hideBtn.textContent = globalHide? 'Show' : 'Hide'; };
+  showBtn.onclick=()=>{ if(globalHide){ perSlideReveal=true; nameBar.classList.remove('collapsed'); } };
+  nextBtn.onclick=()=>{ stopAutoplay(); next(); };
+  openLinkBtn.onclick=()=>{ if(currentLink && currentLink!=='#'){ window.open(currentLink, '_blank', 'noopener'); } };
+
+  // Tap zones for next/prev without interfering left rail
+  document.getElementById('zonePrev').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
+  document.getElementById('zoneNext').addEventListener('click', ()=>{ stopAutoplay(); next(); });
+
+  // Keys: Space play/pause. Left/Right arrows to pages handled above; also slideshow arrows.
+  document.addEventListener('keydown', (e)=>{
+    if(e.target && (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA')) return;
+    if(e.code==='Space'){ e.preventDefault(); autoplay? stopAutoplay() : startAutoplay(); }
+    if(e.key==='ArrowLeft' && activePageIndex()===0){ e.preventDefault(); stopAutoplay(); prev(); }
+    if(e.key==='ArrowRight' && activePageIndex()===0){ e.preventDefault(); stopAutoplay(); next(); }
+  });
+
+  // Swipe pages
+  let tStart=null;
+  document.addEventListener('touchstart', (e)=>{ const t=e.changedTouches[0]; tStart={x:t.clientX,y:t.clientY}; }, {passive:true});
+  document.addEventListener('touchend', (e)=>{ if(!tStart) return; const t=e.changedTouches[0]; const dx=t.clientX-tStart.x; const dy=t.clientY-tStart.y; if(Math.abs(dx)>40 && Math.abs(dy)<60){ const i=activePageIndex()+1; if(dx<0 && i<5) setPage(i+1); if(dx>0 && i>1) setPage(i-1); } tStart=null; }, {passive:true});
+
+  /* ---------- Boot: nothing selected yet ---------- */
+  setCount(0);
+  // You can preselect something by default here if you wish, e.g. Norwegian + Actors:
+  // autoSelect(['Norwegian','Actors']); applySelection();
+
+  function autoSelect(labels){
+    document.querySelectorAll('.termBtn').forEach(b=>{
+      if(labels.includes(b.dataset.term)) b.classList.add('selected'); else b.classList.remove('selected');
+    });
+  }
+
+})();
 </script>
 </body>
 </html>
