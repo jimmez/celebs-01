@@ -1,4 +1,4 @@
-<!-- v.17 (updated) -->
+<!-- v.17 (tuned) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,6 +44,8 @@
 
   .railBtn{width:64px; min-height:44px; display:grid; place-items:center; padding:8px; text-align:center}
   .playButtonBig{width:64px; height:64px; border-radius:16px; font-size:20px; display:grid; place-items:center}
+  /* 3× taller show button */
+  #showThisName{ height:132px; } /* 44px * 3 */
 
   .stage{
     position:relative; height:calc(100vh - 240px); min-height:360px; overflow:hidden; display:grid; grid-template-columns:auto 1fr;
@@ -111,6 +113,8 @@
   <span class="badge" id="countBadge">—</span>
   <div class="sp"></div>
   <button class="iconBtn" id="gearBtn" title="Settings (JSON import/export)">⚙️</button>
+  <!-- NEW: Link button in header (top-right) -->
+  <button class="btn ok" id="openLinkHeader" title="Open source page">Link</button>
   <button class="iconBtn" id="nextTabBtn" title="Next page">➡️</button>
 </header>
 
@@ -141,16 +145,13 @@
         <div class="nameBackdrop"></div>
         <div class="nameLayer">
           <div class="nameBar" id="nameBar"><div class="title" id="entityName">&nbsp;</div></div>
-          <!-- keep Link small & unobtrusive under the title -->
-          <div class="quickRow" style="justify-content:center; gap:12px; margin-top:2px">
-            <button class="btn" id="openLink" title="Open source page">Link</button>
-          </div>
+          <!-- Link moved to header -->
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Categories pages unchanged (kept for brevity) -->
+  <!-- Categories pages kept identical to previous v17 (Apply/Clear on 2–4) -->
   <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
     <div class="builder">
       <div class="hintRow"><div class="hintToggle" id="hintToggle2"></div><div class="hint" id="hint2">Tap to select (blue). Triple-click to edit. Apply clears cache and loads only selected. <a href="#" id="linkP3">Go to Page 3</a> • <a href="#" id="linkP4">Page 4</a> • <a href="#" id="linkP5">Settings</a> • <a href="#" id="linkBack1">Back to Page 1</a></div></div>
@@ -261,7 +262,7 @@
   const entityName = document.getElementById('entityName');
   const hideAllNamesBtn = document.getElementById('hideAllNames');
   const showThisNameBtn = document.getElementById('showThisName');
-  const openLinkBtn = document.getElementById('openLink');
+  const openLinkHeader = document.getElementById('openLinkHeader');
   const countBadge = document.getElementById('countBadge');
   const downloadLink = document.getElementById('downloadLink');
   const toast = document.getElementById('toast');
@@ -311,7 +312,8 @@
   const resetBtn = document.getElementById('resetBtn');
 
   // State
-  let items = []; let timer=null; let autoplay=false; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let nameDelay=500; let globalHideNames=true; let perSlideReveal=false; let currentLink='#';
+  let items = []; let timer=null; let autoplay=false; let currIndex=-1; let lastKeyTime=0; let fixedOrder=false; let nameDelay=500; let globalHideNames=true; let perSlideReveal=false;
+  let currentLink='#';
   window.__slideSeconds = 2; // default 2s
 
   // SPARQL helpers — unified ?entity
@@ -438,7 +440,6 @@ LIMIT 300`;
       const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles=' + encodeURIComponent(fileTitle);
       const res = await fetch(url); const data = await res.json();
       const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null;
-      const info = page?.imageinfo?.[0]; const meta = info?.extmetadata || {};
       const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(fileTitle));
       return { filePageUrl };
     }catch(e){
@@ -469,8 +470,8 @@ LIMIT 300`;
       entityName.textContent = it.name;
 
       const att = await fetchAttribution(it.fileTitle).catch(()=>({filePageUrl:'#'}));
-      const currentLink = it.itemUrl && it.itemUrl!=='#' ? it.itemUrl : att.filePageUrl || '#';
-      openLinkBtn.onclick = ()=>{ if(currentLink && currentLink!=='#') window.open(currentLink,'_blank','noopener'); };
+      currentLink = (it.itemUrl && it.itemUrl!=='#') ? it.itemUrl : (att.filePageUrl || '#');
+      openLinkHeader.onclick = ()=>{ if(currentLink && currentLink!=='#') window.open(currentLink,'_blank','noopener'); };
 
       // Name reveal: show photo first (hidden), reveal if allowed after delay
       nameBar.classList.add('collapsed');
