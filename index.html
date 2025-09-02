@@ -1,41 +1,38 @@
-<!-- v.18.1 -->
+<!-- v19 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Celeb Slideshow — Random Photo Fetcher (v18.1)</title>
-<meta name="description" content="v18.1: true viewport centering + FAB stays above drawer. Seamless swaps, left rail play/hide/show, fine timing controls." />
+<title>Celeb Slideshow — Random Photo Fetcher (v19)</title>
+<meta name="description" content="v19: photos always centered, no blue FAB, timing in Settings, categories auto-apply (random only), Clear on pages 2–4, seamless swaps." />
 <style>
-  :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; --warn:#fbbf24; --rail:#0d1420; }
+  :root { --bg:#0b0f14; --rail:#0d1420; --fg:#e5eef7; --muted:#93a3b8; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
     margin:0; background:var(--bg); color:var(--fg);
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial;
-    display:grid; grid-template-rows:auto auto 1fr auto; /* header, tabs, main, footer */
-    min-height:100vh;
+    display:grid; grid-template-rows:auto auto 1fr auto; min-height:100vh;
   }
-  header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:50; background:rgba(2,6,23,.6); backdrop-filter:blur(8px) saturate(1.2); border-bottom:1px solid rgba(255,255,255,.06)}
+  header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:50; background:rgba(2,6,23,.6); backdrop-filter:blur(8px) saturate(1.1); border-bottom:1px solid rgba(255,255,255,.06)}
   h1{font-size:16px; margin:0}
   .sp{flex:1}
   .iconBtn{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer}
-  .btn{display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; user-select:none; font-weight:700}
-  .btn.wide{padding-left:28px; padding-right:28px}
+  .btn{display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg); cursor:pointer; font-weight:700}
   .btn.primary{border-color:rgba(96,165,250,.6); background:rgba(96,165,250,.15)}
   .btn.ok{border-color:rgba(52,211,153,.6); background:rgba(52,211,153,.15)}
-  .btn.warn{border-color:rgba(251,191,36,.6); background:rgba(251,191,36,.15)}
   .btn.danger{border-color:rgba(248,113,113,.7); background:rgba(248,113,113,.18)}
   .btn.playing{border-color:rgba(52,211,153,.9); background:rgba(52,211,153,.28)}
   .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
 
-  /* Tabs row */
+  /* Tabs */
   .tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:rgba(2,6,23,.35); overflow:auto; position:sticky; top:56px; z-index:49}
   .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap}
   .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.6)}
 
-  main{min-height:0} /* allow stage to size correctly */
-  .page{display:none; height:100%; overflow:hidden}
+  main{min-height:0}
+  .page{display:none; height:100%; overflow:auto}
   .page.active{display:block}
 
   /* Left rail */
@@ -45,21 +42,20 @@
   }
   .leftRail::before{content:''; position:absolute; top:0; bottom:0; left:0; width:6px; background:rgba(255,255,255,.06)}
   .leftRail.playing::before{background:var(--ok)}
-  .leftRailSpacer{ width:74px; } /* reserve space so photo never sits under rail */
   .railBtn{width:64px; min-height:44px; display:grid; place-items:center; padding:8px; text-align:center}
   .playButtonBig{width:64px; height:64px; border-radius:16px; font-size:20px; display:grid; place-items:center}
   #showThisName{ height:132px; } /* 3× taller */
 
-  /* Stage AREA height is computed in JS and set via style attr */
+  /* Stage: always centered */
   .stage{
-    position:relative; overflow:hidden;
-    display:grid; grid-template-columns:auto 1fr; align-items:center; justify-items:center;
-    background:transparent;
+    position:relative; margin-left:74px; /* reserve rail space */
+    display:flex; align-items:center; justify-content:center;
+    height:calc(100vh - (56px + 48px + 52px)); /* header + tabs ~ + footer approx; js updates exact */
+    overflow:hidden;
   }
-  .imgwrap{
-    position:relative; width:100%; height:100%;
-    display:flex; align-items:center; justify-content:center; /* hard center */
-  }
+  @media (max-width:768px){ .stage{ margin-left:64px } }
+
+  .imgwrap{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
   img.photo{
     max-width:85%; max-height:85%;
     object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6);
@@ -67,65 +63,40 @@
   }
   img.photo.show{opacity:1}
 
-  /* Click/tap zones */
+  /* Tap zones */
   .hotzone{position:absolute; top:0; bottom:0; z-index:10}
   .hotzone.left{left:74px; width:calc(33.333% - 74px)}
   .hotzone.right{right:0; width:66.667%}
-  body.drawer-open .hotzone{ pointer-events:none; } /* avoid drawer fights */
+  @media (max-width:768px){ .hotzone.left{left:64px; width:calc(33.333% - 64px)} }
 
-  /* Name overlay ~30% bottom */
+  /* Name overlay ~30% bottom of photo area */
   .nameArea{position:absolute; left:74px; right:0; bottom:0; height:30%; display:grid; place-items:center; padding:8px; z-index:40}
+  @media (max-width:768px){ .nameArea{ left:64px } }
   .nameBackdrop{position:absolute; inset:0; background:linear-gradient(180deg, rgba(2,6,23,0) 0%, rgba(2,6,23,.75) 35%, rgba(2,6,23,.92) 100%)}
   .nameLayer{position:relative; width:min(92%, 900px); display:grid; gap:10px; justify-items:center}
   .nameBar{width:100%; background:transparent; border:none; padding:0; text-align:center}
   .nameBar.collapsed{display:none}
-  .title{font-size:24px; font-weight:900; text-shadow:0 2px 12px rgba(0,0,0,.8)}
+  .title{font-size:24px; font-weight:900; text-shadow:0 2px 12px rgba(0,0,0,.85)}
 
+  /* Category pages */
   .builder{padding:12px}
-  .hintRow{display:flex; gap:10px; align-items:center; margin-bottom:8px}
-  .hint{font-size:13px; color:var(--muted)}
-  .hintToggle{width:18px; height:18px; border-radius:4px; background:#334155; border:1px solid rgba(255,255,255,.2); cursor:pointer}
-
+  .hint{font-size:13px; color:var(--muted); margin-bottom:8px}
   .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
   .termBtn{padding:12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
   .termBtn.selected{outline:2px solid var(--accent); background:#1f2937}
-  .termBtn.editing{outline:2px dashed var(--warn)}
+
   .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
+  .builderActions .sp{flex:1}
 
   footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:var(--muted); border-top:1px solid rgba(255,255,255,.06)}
   footer a{color:var(--ok); text-decoration:none}
 
   .toast{position:fixed; right:16px; bottom:16px; background:rgba(2,6,23,.85); color:var(--fg); border:1px solid rgba(255,255,255,.09); padding:10px 12px; border-radius:12px; font-size:13px; display:none; z-index:200}
 
-  /* FAB + drawer */
-  .fab{
-    position:fixed; right:16px; bottom:16px; width:56px; height:56px; border-radius:50%;
-    background:#3b82f6; color:white; display:grid; place-items:center; font-size:22px; cursor:pointer;
-    box-shadow:0 10px 24px rgba(0,0,0,.35);
-    z-index:160; /* ABOVE the drawer so you can close it with the ball */
-  }
-  .drawer{
-    position:fixed; left:0; right:0; bottom:-300px;
-    background:rgba(15,23,42,.96); border-top:1px solid rgba(255,255,255,.08);
-    padding:12px; transition:bottom .25s ease; z-index:150; /* below FAB */
-  }
-  .drawer.open{bottom:0}
-  .drawerInner{max-width:520px; margin-left:auto}
-  .quickRow{display:flex; gap:8px; flex-wrap:wrap}
-  .quickBtn{padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
-
-  .debug{position:fixed; left:12px; bottom:60px; font-size:11px; color:#9fb7d6; opacity:.7; z-index:200}
-
+  /* Settings steppers */
   .stepper{display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.06)}
-  .stepper .stepVal{min-width:40px; text-align:center; font-weight:800}
-
-  @media (max-width: 768px){
-    .leftRail{width:64px}
-    .leftRailSpacer{width:64px}
-    .hotzone.left{left:64px; width:calc(33.333% - 64px)}
-    .nameArea{left:64px}
-    .drawerInner{max-width:96%; margin-right:0}
-  }
+  .quickBtn{padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
+  .stepVal{min-width:40px; text-align:center; font-weight:800}
 </style>
 </head>
 <body>
@@ -133,13 +104,13 @@
   <h1>🎞️ Celeb Slideshow</h1>
   <span class="badge" id="countBadge">—</span>
   <div class="sp"></div>
-  <button class="iconBtn" id="gearBtn" title="Settings (JSON import/export)">⚙️</button>
+  <button class="iconBtn" id="gearBtn" title="Settings (JSON & timing)">⚙️</button>
   <button class="btn ok" id="openLinkHeader" title="Open source page">Link</button>
   <button class="iconBtn" id="nextTabBtn" title="Next page">➡️</button>
 </header>
 
 <nav class="tabs" role="tablist" id="tabsRow">
-  <button class="tab" role="tab" aria-controls="page1" aria-selected="true" id="tab1">Page 1: Slideshow</button>
+  <button class="tab" role="tab" aria-controls="page1" aria-selected="true"  id="tab1">Page 1: Slideshow</button>
   <button class="tab" role="tab" aria-controls="page2" aria-selected="false" id="tab2">Page 2: Categories A</button>
   <button class="tab" role="tab" aria-controls="page3" aria-selected="false" id="tab3">Page 3: Categories B</button>
   <button class="tab" role="tab" aria-controls="page4" aria-selected="false" id="tab4">Page 4: Categories C</button>
@@ -147,17 +118,17 @@
 </nav>
 
 <main id="mainArea">
+  <!-- Page 1 -->
   <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
-    <div class="stage" id="stage" style="height:60vh">
-      <div class="leftRail" id="leftRail">
-        <button class="btn railBtn" id="hideAllNames" title="Hide/Show names">Hide</button>
-        <button class="btn primary playButtonBig" id="cornerPlayStop" title="Play / Stop">⏯️</button>
-        <button class="btn railBtn" id="showThisName" title="Show this photo’s name">Show</button>
-      </div>
-      <div class="leftRailSpacer" aria-hidden="true"></div>
+    <div class="leftRail" id="leftRail">
+      <button class="btn railBtn" id="hideAllNames" title="Hide/Show names">Hide</button>
+      <button class="btn primary playButtonBig" id="cornerPlayStop" title="Play / Stop">⏯️</button>
+      <button class="btn railBtn" id="showThisName" title="Show this photo’s name">Show</button>
+    </div>
 
+    <div class="stage" id="stage">
       <div class="imgwrap" id="imgwrap"></div>
-      <div class="hotzone left" id="zoneLeft" title="Previous"></div>
+      <div class="hotzone left"  id="zoneLeft"  title="Previous"></div>
       <div class="hotzone right" id="zoneRight" title="Next"></div>
 
       <div class="nameArea">
@@ -169,11 +140,90 @@
     </div>
   </section>
 
-  <!-- Pages 2–5 are unchanged from your v18 and omitted here for brevity -->
-  <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2"><div class="builder"><div class="grid" id="termGrid1"></div><div class="builderActions"><input type="text" id="customTerm1" placeholder="Add a custom term…"/><button class="btn ok" id="addTerm1">Add</button><button class="btn primary" id="applyBtn">Apply selection</button><button class="btn danger" id="clearSelBtn">Clear selection</button><span class="hint">Mode:</span><button class="btn" id="modeRandom" aria-pressed="true">Random photos</button><button class="btn" id="modeFixed" aria-pressed="false">Same sequence</button></div></div></section>
-  <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3"><div class="builder"><div class="grid" id="termGrid2"></div><div class="builderActions"><input type="text" id="customTerm2" placeholder="Add a custom term…"/><button class="btn ok" id="addTerm2">Add</button><button class="btn primary" id="applyBtn2">Apply selection</button><button class="btn danger" id="clearSelBtn2">Clear selection</button></div></div></section>
-  <section id="page4" class="page" role="tabpanel" aria-labelledby="tab4"><div class="builder"><div class="grid" id="termGrid3"></div><div class="builderActions"><input type="text" id="customTerm3" placeholder="Add a custom term…"/><button class="btn ok" id="addTerm3">Add</button><button class="btn primary" id="applyBtn3">Apply selection</button><button class="btn danger" id="clearSelBtn3">Clear selection</button></div></div></section>
-  <section id="page5" class="page" role="tabpanel" aria-labelledby="tab5"><div class="builder"><div style="display:grid; gap:10px; max-width:840px"><button class="btn primary" id="exportBtn">Export categories → JSON</button><textarea id="jsonBox" placeholder='Paste JSON here to import…'></textarea><div style="display:flex; gap:8px; flex-wrap:wrap"><button class="btn ok" id="importBtn">Import JSON</button><button class="btn warn" id="resetBtn">Reset to defaults</button></div></div></div></section>
+  <!-- Page 2 -->
+  <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
+    <div class="builder">
+      <div class="hint">Tap categories to include them. Selection applies automatically (random order). Use “Clear selection”.</div>
+      <div class="grid" id="termGrid1"></div>
+      <div class="builderActions">
+        <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
+        <button class="btn ok" id="addTerm1">Add</button>
+        <div class="sp"></div>
+        <button class="btn danger" id="clearSelBtn">Clear selection</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Page 3 -->
+  <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
+    <div class="builder">
+      <div class="grid" id="termGrid2"></div>
+      <div class="builderActions">
+        <input type="text" id="customTerm2" placeholder="Add a custom term…" />
+        <button class="btn ok" id="addTerm2">Add</button>
+        <div class="sp"></div>
+        <button class="btn danger" id="clearSelBtn2">Clear selection</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Page 4 -->
+  <section id="page4" class="page" role="tabpanel" aria-labelledby="tab4">
+    <div class="builder">
+      <div class="grid" id="termGrid3"></div>
+      <div class="builderActions">
+        <input type="text" id="customTerm3" placeholder="Add a custom term…" />
+        <button class="btn ok" id="addTerm3">Add</button>
+        <div class="sp"></div>
+        <button class="btn danger" id="clearSelBtn3">Clear selection</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Page 5: Settings (timing + JSON) -->
+  <section id="page5" class="page" role="tabpanel" aria-labelledby="tab5">
+    <div class="builder" style="max-width:720px">
+      <h3>Timing</h3>
+      <div class="hint">Slide speed and Name reveal delay (seconds ±1s, steps of 0.2s).</div>
+      <div class="builderActions">
+        <span>Slide speed</span>
+        <div class="stepper" id="fineRow">
+          <button class="quickBtn" data-delta="-1">−1s</button>
+          <span class="stepVal" id="fineSec">2.0</span>
+          <button class="quickBtn" data-delta="1">＋1s</button>
+        </div>
+        <div class="stepper">
+          <button class="quickBtn" data-delta="-0.2" data-type="ms">−0.2s</button>
+          <span class="stepVal" id="fineMs">0.0</span>
+          <button class="quickBtn" data-delta="0.2" data-type="ms">＋0.2s</button>
+        </div>
+        <strong id="fineTotal">2.0s</strong>
+      </div>
+
+      <div class="builderActions">
+        <span>Name reveal</span>
+        <div class="stepper" id="nameFineRow">
+          <button class="quickBtn" data-delta="-1">−1s</button>
+          <span class="stepVal" id="nameSec">0.5</span>
+          <button class="quickBtn" data-delta="1">＋1s</button>
+        </div>
+        <div class="stepper">
+          <button class="quickBtn" data-delta="-0.2" data-type="ms">−0.2s</button>
+          <span class="stepVal" id="nameMs">0.0</span>
+          <button class="quickBtn" data-delta="0.2" data-type="ms">＋0.2s</button>
+        </div>
+        <strong id="nameTotal">0.5s</strong>
+      </div>
+
+      <h3>Categories JSON</h3>
+      <div class="builderActions">
+        <button class="btn primary" id="exportBtn">Export → JSON</button>
+        <button class="btn ok" id="importBtn">Import JSON</button>
+        <button class="btn" id="resetBtn">Reset defaults</button>
+      </div>
+      <textarea id="jsonBox" placeholder='Paste JSON here to import…' style="width:100%; min-height:180px"></textarea>
+    </div>
+  </section>
 </main>
 
 <footer>
@@ -182,88 +232,28 @@
   <a href="#" id="downloadLink" title="Download current image">Download</a>
 </footer>
 
-<!-- Timing drawer -->
-<button class="fab" id="speedFab" title="Speed / Name delay">●</button>
-<div class="drawer" id="speedDrawer">
-  <div class="drawerInner">
-    <div><strong>Slide speed</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
-    <div class="quickRow" id="fineRow">
-      <div class="stepper" data-type="sec">
-        <button class="quickBtn" data-delta="-1">−1s</button>
-        <span class="stepVal" id="fineSec">2</span><span class="hint"> s</span>
-        <button class="quickBtn" data-delta="1">＋1s</button>
-      </div>
-      <div class="stepper" data-type="ms">
-        <button class="quickBtn" data-delta="-0.2">−0.2s</button>
-        <span class="stepVal" id="fineMs">0.0</span><span class="hint"> s</span>
-        <button class="quickBtn" data-delta="0.2">＋0.2s</button>
-      </div>
-      <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="fineTotal">2.0s</strong></div>
-    </div>
-
-    <div style="margin-top:8px"><strong>Name reveal delay</strong> <span class="hint">(seconds ±1s, ms ±0.2s)</span></div>
-    <div class="quickRow" id="nameFineRow">
-      <div class="stepper" data-type="nsec">
-        <button class="quickBtn" data-delta="-1">−1s</button>
-        <span class="stepVal" id="nameSec">0</span><span class="hint"> s</span>
-        <button class="quickBtn" data-delta="1">＋1s</button>
-      </div>
-      <div class="stepper" data-type="nms">
-        <button class="quickBtn" data-delta="-0.2">−0.2s</button>
-        <span class="stepVal" id="nameMs">0.5</span><span class="hint"> s</span>
-        <button class="quickBtn" data-delta="0.2">＋0.2s</button>
-      </div>
-      <div class="stepperDisplay"><span class="hint">Total:</span> <strong id="nameTotal">0.5s</strong></div>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
-<div class="debug" id="debug"></div>
 
 <script>
 (function(){
-  // ---- Elements
+  // ---------- Layout helpers: keep stage perfectly centered
   const header = document.querySelector('header');
   const tabsRow = document.getElementById('tabsRow');
   const footer = document.querySelector('footer');
   const stage  = document.getElementById('stage');
-  const imgwrap = document.getElementById('imgwrap');
-
-  const nameBar = document.getElementById('nameBar');
-  const entityName = document.getElementById('entityName');
-  const hideAllNamesBtn = document.getElementById('hideAllNames');
-  const showThisNameBtn = document.getElementById('showThisName');
-  const openLinkHeader = document.getElementById('openLinkHeader');
-  const countBadge = document.getElementById('countBadge');
-  const downloadLink = document.getElementById('downloadLink');
-  const toast = document.getElementById('toast');
-  const speedFab = document.getElementById('speedFab');
-  const speedDrawer = document.getElementById('speedDrawer');
-  const leftRail = document.getElementById('leftRail');
-  const cornerPlayStop = document.getElementById('cornerPlayStop');
-
-  const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
-
-  // ---- Viewport-fit stage: always center photo
-  function px(n){ return Math.max(0, Math.round(n)) }
   function setStageHeight(){
     const h = window.innerHeight;
     const used = header.offsetHeight + tabsRow.offsetHeight + footer.offsetHeight;
-    const avail = px(h - used);
-    stage.style.height = avail + 'px';
+    stage.style.height = Math.max(280, h - used) + 'px';
   }
   addEventListener('resize', setStageHeight);
   addEventListener('orientationchange', setStageHeight);
   setStageHeight();
 
-  // ---- Tabs
+  // ---------- Tabs
+  const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
   function setPage(idx){
     tabs.forEach((t,i)=>{ const on=(i+1)===idx; t.page.classList.toggle('active', on); t.tab.setAttribute('aria-selected', String(on)); });
-    const onSlide = idx===1;
-    leftRail.style.display = onSlide? 'grid' : 'none';
-    speedFab.style.display = onSlide? 'grid' : 'none';
-    if(!onSlide){ speedDrawer.classList.remove('open'); document.body.classList.remove('drawer-open'); }
     setStageHeight();
   }
   tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
@@ -273,59 +263,71 @@
     setPage(active%5 + 1);
   });
 
-  // ---- Drawer + FAB (ball stays above and closes/open)
-  speedFab.addEventListener('click', ()=>{
-    const open = speedDrawer.classList.toggle('open');
-    document.body.classList.toggle('drawer-open', open);
-  });
+  // ---------- Elements & state
+  const leftRail = document.getElementById('leftRail');
+  const cornerPlayStop = document.getElementById('cornerPlayStop');
+  const hideAllNamesBtn = document.getElementById('hideAllNames');
+  const showThisNameBtn = document.getElementById('showThisName');
+  const imgwrap = document.getElementById('imgwrap');
+  const nameBar = document.getElementById('nameBar');
+  const entityName = document.getElementById('entityName');
+  const openLinkHeader = document.getElementById('openLinkHeader');
+  const countBadge = document.getElementById('countBadge');
+  const downloadLink = document.getElementById('downloadLink');
+  const toast = document.getElementById('toast');
 
-  // ---- Timing controls (fine only)
   let autoplay=false, timer=null;
-  window.__slideSeconds = 2;
+  let items=[], currIndex=-1, currentImg=null, currentLink='#';
+  let globalHideNames=true, perSlideReveal=false;
+  window.__slideSeconds = 2.0;
   let nameDelay = 500;
-  const clampStep = v => Number((Math.max(0, Math.min(10, v))).toFixed(1));
 
+  // ---------- Timing controls (Settings page)
+  function roundStep(v){ return Number((Math.round(v/0.2)*0.2).toFixed(1)); }
   function updateSpeedDisplay(){
     const s = window.__slideSeconds;
     const sec = Math.floor(s);
-    const frac = s-sec;
-    const part = Math.round(frac/0.2)*0.2;
-    document.getElementById('fineSec').textContent = String(sec);
-    document.getElementById('fineMs').textContent = part.toFixed(1);
-    document.getElementById('fineTotal').textContent = (sec+part).toFixed(1)+'s';
+    const frac = roundStep(s-sec);
+    document.getElementById('fineSec').textContent = (sec+frac).toFixed(1); // show combined nicely
+    document.getElementById('fineMs').textContent = frac.toFixed(1);
+    document.getElementById('fineTotal').textContent = (sec+frac).toFixed(1)+'s';
   }
-  function setSlide(seconds){
-    // steps of 0.2s
-    const stepped = Math.round(seconds/0.2)*0.2;
-    window.__slideSeconds = clampStep(stepped);
+  function setSlide(s){
+    s = Math.max(0, Math.min(10, s));
+    window.__slideSeconds = roundStep(s);
     updateSpeedDisplay();
     if(autoplay) startAutoplay();
   }
   updateSpeedDisplay();
-  document.querySelectorAll('#fineRow .quickBtn').forEach(btn=>{
-    btn.addEventListener('click', ()=> setSlide((window.__slideSeconds||0) + Number(btn.dataset.delta)));
+  document.querySelectorAll('#fineRow .quickBtn, #fineRow + .stepper .quickBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const delta = Number(btn.dataset.delta);
+      setSlide((window.__slideSeconds||0) + delta);
+    });
   });
 
   function updateNameDisplay(){
-    const s = nameDelay/1000;
+    const s = roundStep(nameDelay/1000);
     const sec = Math.floor(s);
-    const frac = s-sec;
-    const part = Math.round(frac/0.2)*0.2;
-    document.getElementById('nameSec').textContent = String(sec);
-    document.getElementById('nameMs').textContent = part.toFixed(1);
-    document.getElementById('nameTotal').textContent = (sec+part).toFixed(1)+'s';
+    const frac = roundStep(s-sec);
+    document.getElementById('nameSec').textContent = (sec+frac).toFixed(1);
+    document.getElementById('nameMs').textContent = frac.toFixed(1);
+    document.getElementById('nameTotal').textContent = (sec+frac).toFixed(1)+'s';
   }
-  function setNameDelay(seconds){
-    const stepped = Math.round(seconds/0.2)*0.2;
-    nameDelay = Math.round(stepped*1000);
+  function setNameDelaySeconds(s){
+    s = Math.max(0, Math.min(10, s));
+    nameDelay = Math.round(roundStep(s)*1000);
     updateNameDisplay();
   }
   updateNameDisplay();
-  document.querySelectorAll('#nameFineRow .quickBtn').forEach(btn=>{
-    btn.addEventListener('click', ()=> setNameDelay(nameDelay/1000 + Number(btn.dataset.delta)));
+  document.querySelectorAll('#nameFineRow .quickBtn, #nameFineRow + .stepper .quickBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const delta = Number(btn.dataset.delta);
+      setNameDelaySeconds((nameDelay/1000) + delta);
+    });
   });
 
-  // ---- Hotkeys
+  // ---------- Keyboard
   let lastKeyTime=0;
   function isTyping(t){ return t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA' || t.isContentEditable); }
   document.addEventListener('keydown', e=>{
@@ -338,10 +340,7 @@
     if (key==='arrowright'){ e.preventDefault(); stopAutoplay(); next(); return; }
   });
 
-  // ---- Image pipeline with seamless swap + fallback
-  let items = [], currIndex=-1, currentImg=null, currentLink='#';
-  let globalHideNames=true, perSlideReveal=false;
-
+  // ---------- Image pipeline (seamless + fallback)
   function swapIn(img){
     const prev = currentImg;
     currentImg = img; currentImg.classList.add('photo','show');
@@ -357,8 +356,7 @@
       const img = new Image(); img.decoding='async'; img.referrerPolicy='no-referrer';
       img.onload = ()=> resolve(img);
       img.onerror = ()=>{
-        // fallback to thumb.php
-        const alt = 'https://commons.wikimedia.org/w/thumb.php?width=1600&f=' + encodeURIComponent(fileName.replace(/^File:/,''));
+        const alt = 'https://commons.wikimedia.org/w/thumb.php?width=1600&f=' + encodeURIComponent((fileName||'').replace(/^File:/,''));
         const img2 = new Image(); img2.decoding='async'; img2.referrerPolicy='no-referrer';
         img2.onload = ()=> resolve(img2);
         img2.onerror = ()=> reject(new Error('both loaders failed'));
@@ -377,7 +375,6 @@
       const img = await loadWithFallback(it.imageUrl, fileName);
       swapIn(img);
       entityName.textContent = it.name || '—';
-      // name reveal logic
       nameBar.classList.add('collapsed');
       setTimeout(()=>{
         const shouldShow = (!globalHideNames) || perSlideReveal;
@@ -387,94 +384,72 @@
       currentLink = it.itemUrl || '#';
       openLinkHeader.onclick = ()=>{ if(currentLink && currentLink!=='#') window.open(currentLink,'_blank','noopener'); };
       downloadLink.href = it.imageUrl; downloadLink.download = (fileName||'image').replace(/^File:/,'');
-    }catch(e){
-      // skip broken and move on
-      next();
-    }
+    }catch{ next(); }
   }
   function next(){ showIndex((currIndex + 1) % items.length); }
   function prev(){ showIndex((currIndex - 1 + items.length) % items.length); }
 
   function startAutoplay(){ if(timer) clearInterval(timer); timer = setInterval(next, (window.__slideSeconds||2)*1000); autoplay = true; cornerPlayStop.textContent='⏹️'; cornerPlayStop.classList.add('playing'); leftRail.classList.add('playing'); }
   function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.textContent='▶️'; cornerPlayStop.classList.remove('playing'); leftRail.classList.remove('playing'); }
-
-  function toggleGlobalName(){
-    globalHideNames = !globalHideNames;
-    hideAllNamesBtn.textContent = globalHideNames ? 'Show' : 'Hide';
-    nameBar.classList.toggle('collapsed', globalHideNames);
-  }
-
-  document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
-  document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
   cornerPlayStop.addEventListener('click', ()=>{ autoplay? stopAutoplay() : startAutoplay(); });
+  function toggleGlobalName(){ globalHideNames = !globalHideNames; hideAllNamesBtn.textContent = globalHideNames ? 'Show' : 'Hide'; nameBar.classList.toggle('collapsed', globalHideNames); }
   hideAllNamesBtn.addEventListener('click', toggleGlobalName);
   showThisNameBtn.addEventListener('click', ()=>{ if(globalHideNames){ perSlideReveal = true; nameBar.classList.remove('collapsed'); } });
 
-  // ---- Categories (minimal to keep example compact)
+  document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
+  document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
+
+  // ---------- Category UI (auto-apply with debounce)
   const grids = [
     { grid: document.getElementById('termGrid1'), input: document.getElementById('customTerm1'), add: document.getElementById('addTerm1') },
     { grid: document.getElementById('termGrid2'), input: document.getElementById('customTerm2'), add: document.getElementById('addTerm2') },
     { grid: document.getElementById('termGrid3'), input: document.getElementById('customTerm3'), add: document.getElementById('addTerm3') },
   ];
-  const applyBtn = document.getElementById('applyBtn');
-  const applyBtn2 = document.getElementById('applyBtn2');
-  const applyBtn3 = document.getElementById('applyBtn3');
-  const clearSelBtn = document.getElementById('clearSelBtn');
-  const clearSelBtn2 = document.getElementById('clearSelBtn2');
-  const clearSelBtn3 = document.getElementById('clearSelBtn3');
-  const modeRandom = document.getElementById('modeRandom');
-  const modeFixed  = document.getElementById('modeFixed');
+  ['clearSelBtn','clearSelBtn2','clearSelBtn3'].forEach(id=>{
+    const b=document.getElementById(id);
+    if(b) b.addEventListener('click', ()=>{ clearSelection(); debouncedApply(); });
+  });
 
   function makeTermButton(label, gridEl){
     const btn=document.createElement('button');
-    btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0';
+    btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label;
     btn.addEventListener('click', ()=>{
-      const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c);
-      if(c>=3){
-        btn.dataset.clicks='0'; btn.classList.add('editing');
-        const prev=btn.dataset.term; const input=document.createElement('input');
-        input.type='text'; input.value=prev; input.style.width='100%';
-        input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); }});
-        input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); });
-        btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return;
-      }
       btn.classList.toggle('selected');
-      setTimeout(()=>{ btn.dataset.clicks='0'; }, 300);
+      debouncedApply();
     });
-    gridEl.appendChild(btn);
-    return btn;
+    gridEl.appendChild(btn); return btn;
   }
-
-  function ensureMinTiles(){
-    const total = grids.reduce((n,g)=> n + g.grid.querySelectorAll('.termBtn').length, 0);
-    for(let i=total;i<48;i++){
-      const gi=Math.min(Math.floor(i/16), grids.length-1);
-      makeTermButton('Custom term', grids[gi].grid);
+  function clearSelection(){
+    grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
+    items=[]; currIndex=-1; countBadge.textContent='0';
+  }
+  function selectedTerms(){
+    const out=[]; grids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=> out.push(b.dataset.term||b.textContent.trim())));
+    return out;
+  }
+  const presets = [
+    'Norwegian celebs','Beatles','US celebrities','Norwegian politicians','Norwegian CEO','US CEO','World CEO','Music producers',
+    "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters','objects','household objects','clutter home objects','cars',
+    'actors 2025','singers 2024','bands 2024','scientists','historical figures in science','historical leaders','historical pioneers','cars of 2010','cars of 2025'
+  ];
+  (function populate(){
+    const lists=[grids[0].grid,grids[1].grid,grids[2].grid];
+    presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16),2); makeTermButton(p, lists[gi]); });
+    // Auto-select “Norwegian celebs”
+    Array.from(lists[0].children).forEach(b=>{ if(b.dataset.term==='Norwegian celebs') b.classList.add('selected'); });
+  })();
+  // Add custom
+  grids.forEach(g=>{
+    if(g.add && g.input && g.grid){
+      g.add.addEventListener('click', ()=>{
+        const v=(g.input.value||'').trim(); if(!v) return;
+        makeTermButton(v, g.grid).classList.add('selected');
+        g.input.value=''; debouncedApply();
+      });
     }
-  }
+  });
 
-  function populateDefaults(){
-    grids.forEach(g=> g.grid.innerHTML='');
-    const presets = [
-      'Norwegian celebs','Beatles','US celebrities','Norwegian politicians','Norwegian CEO','US CEO','World CEO','Music producers',
-      "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters','objects','household objects','clutter home objects','cars',
-      'actors 2025','singers 2024','bands 2024','scientists','historical figures in science','historical leaders','historical pioneers','cars of 2010','cars of 2025'
-    ];
-    presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16), grids.length-1); makeTermButton(p, grids[gi].grid); });
-    ensureMinTiles();
-    // auto-select Norwegian celebs as you wanted
-    Array.from(grids[0].grid.querySelectorAll('.termBtn')).forEach(b=>{
-      if(b.dataset.term==='Norwegian celebs') b.classList.add('selected');
-    });
-  }
-  populateDefaults();
-
-  function collectSelectedTerms(){
-    const out=[]; grids.forEach(g=> out.push(...Array.from(g.grid.querySelectorAll('.termBtn.selected')).map(b=> b.dataset.term||b.textContent.trim())));
-    return out.filter(Boolean);
-  }
-
-  // ---- Wikidata/Commons
+  // ---------- Data (Wikidata/Commons)
   function H(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . BIND(?person AS ?entity) }`; }
   function F(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} BIND(?person AS ?entity) }`; }
   function T(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . BIND(?thing AS ?entity) }`; }
@@ -504,11 +479,11 @@
     'cars': () => T([ ' { ?thing wdt:P31 wd:Q1420 . } UNION { ?thing wdt:P31 wd:Q3231690 . } ' ]),
     'actors 2025': () => H([ 'wdt:P106 wd:Q33999 ;' ]),
     'singers 2024': () => H([ 'wdt:P106 wd:Q177220 ;' ]),
-    'bands 2024': () => T([ ' ?thing wdt:P31/wdt:P279* wd:Q215380 ; ' ]), /* musical group */
-    'scientists': () => H([ 'wdt:P106 wd:Q901 . ' ]),
+    'bands 2024': () => T([ ' ?thing wdt:P31/wdt:P279* wd:Q215380 . ' ]), /* musical group */
+    'scientists': () => H([ 'wdt:P106 wd:Q901 ; ' ]),
     'historical figures in science': () => H([ 'wdt:P106 wd:Q901 ; ' ]),
-    'historical leaders': () => H([ 'wdt:P106 wd:Q82955 ; ' ]), /* politician as proxy */
-    'historical pioneers': () => H([ 'wdt:P106 wd:Q81096 ; ' ]) /* inventor as proxy */
+    'historical leaders': () => H([ 'wdt:P106 wd:Q82955 ; ' ]), /* using politician as proxy */
+    'historical pioneers': () => H([ 'wdt:P106 wd:Q81096 ; ' ])  /* inventor as proxy */
   };
 
   function parseDynamicTerm(term){
@@ -574,22 +549,24 @@
     }).filter(Boolean);
   }
 
-  // ---- Apply/Clear/Mode
-  function selectedTerms(){
-    const out=[]; [0,1,2].forEach(i=>{
-      const grid = document.getElementById('termGrid'+(i+1));
-      if(!grid) return;
-      grid.querySelectorAll('.termBtn.selected').forEach(b=> out.push(b.dataset.term||b.textContent.trim()));
-    });
-    return out;
+  // ---------- Apply selection (auto)
+  let applyTimer=null;
+  function debouncedApply(){
+    clearTimeout(applyTimer);
+    applyTimer = setTimeout(applySelection, 400); // small debounce to avoid hammering WDQS
   }
 
   async function applySelection(){
-    items = []; currIndex=-1; countBadge.textContent='Fetching…';
     const chosen = selectedTerms();
-    if(!chosen.length){ toast.textContent='Select one or more categories first.'; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1200); return; }
+    if(!chosen.length){
+      items=[]; currIndex=-1; countBadge.textContent='0';
+      return;
+    }
+    countBadge.textContent='Fetching…';
     try{
       let data = await fetchWDFromTerms(chosen);
+      // random order only
+      data = data.sort(()=>Math.random()-0.5);
       items = data;
       countBadge.textContent = `${items.length} photos`;
       if(!items.length) return;
@@ -597,63 +574,27 @@
       stopAutoplay(); showIndex(0); startAutoplay();
     }catch(e){
       countBadge.textContent='0';
-      toast.textContent='Fetch error: '+e.message;
-      toast.style.display='block'; setTimeout(()=> toast.style.display='none', 2000);
+      toast.textContent='Fetch error: '+e.message; toast.style.display='block'; setTimeout(()=> toast.style.display='none', 1800);
     }
   }
 
-  function attachBuilder(){
-    const adders = [['addTerm1','customTerm1','termGrid1'],['addTerm2','customTerm2','termGrid2'],['addTerm3','customTerm3','termGrid3']];
-    adders.forEach(([addId,inputId,gridId])=>{
-      const add = document.getElementById(addId), inp = document.getElementById(inputId), grid = document.getElementById(gridId);
-      if(add && inp && grid){
-        add.onclick = ()=>{ const v=(inp.value||'').trim(); if(!v) return; makeTermButton(v, grid); inp.value=''; };
-      }
-    });
-    const clears = ['clearSelBtn','clearSelBtn2','clearSelBtn3'];
-    clears.forEach(id=>{
-      const btn = document.getElementById(id);
-      if(btn) btn.onclick = ()=>{
-        [1,2,3].forEach(i=> document.getElementById('termGrid'+i)?.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
-        items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay();
-      };
-    });
-    const applies = ['applyBtn','applyBtn2','applyBtn3'];
-    applies.forEach(id=>{ const b=document.getElementById(id); if(b) b.onclick=applySelection; });
-    document.getElementById('modeRandom')?.addEventListener('click', ()=>{ /* keep simple */ });
-    document.getElementById('modeFixed')?.addEventListener('click', ()=>{ /* keep simple */ });
-  }
+  // ---------- Populate defaults & kick off
+  // Build grids are already populated above (presets)
+  // Auto-apply initial selection (Norwegian celebs)
+  debouncedApply();
 
-  // Build default tiles and attach handlers
-  attachBuilder();
-
-  // Create grid buttons now
-  (function populate(){
-    const lists=[document.getElementById('termGrid1'),document.getElementById('termGrid2'),document.getElementById('termGrid3')];
-    const presets = [
-      'Norwegian celebs','Beatles','US celebrities','Norwegian politicians','Norwegian CEO','US CEO','World CEO','Music producers',
-      "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters','objects','household objects','clutter home objects','cars',
-      'actors 2025','singers 2024','bands 2024','scientists','historical figures in science','historical leaders','historical pioneers','cars of 2010','cars of 2025'
-    ];
-    presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16), 2); makeTermButton(p, lists[gi]); });
-    ensureMinTiles();
-    // auto-select and auto-apply
-    lists[0].querySelectorAll('.termBtn').forEach(b=>{ if(b.dataset.term==='Norwegian celebs') b.classList.add('selected'); });
-    applySelection();
-  })();
-
-  // Simple swipe (optional)
-  let tStart=null;
-  document.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; tStart={x:t.clientX,y:t.clientY}; }, {passive:true});
+  // ---------- Simple swipe page nav
+  let s=null;
+  document.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; s={x:t.clientX,y:t.clientY}; }, {passive:true});
   document.addEventListener('touchend', e=>{
-    if(!tStart) return; const t=e.changedTouches[0];
-    const dx=t.clientX-tStart.x, dy=t.clientY-tStart.y;
+    if(!s) return; const t=e.changedTouches[0];
+    const dx=t.clientX-s.x, dy=t.clientY-s.y;
     if(Math.abs(dx)>40 && Math.abs(dy)<60){
       const active = tabs.findIndex(t=> t.page.classList.contains('active')) + 1;
       if(dx<0 && active<5) setPage(active+1);
       if(dx>0 && active>1) setPage(active-1);
     }
-    tStart=null;
+    s=null;
   }, {passive:true});
 })();
 </script>
