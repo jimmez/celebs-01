@@ -1,553 +1,151 @@
-<!-- v26 -->
+<!-- v24 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Celeb Slideshow — Random Photo Fetcher (v26)</title>
-<meta name="description" content="Swipe pages, auto-fetch from Wikidata/Commons, random mixing, edit tiles (triple click), clear-all, seamless centered images. Arrow keys for page nav, Alt+C = Clear ALL." />
+<title>Celeb Slideshow v24</title>
 <style>
-  :root { --bg:#0b0f14; --panel:#0f172a; --muted:#93a3b8; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --danger:#f87171; }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto auto 1fr auto}
-
-  header{display:flex; gap:10px; align-items:center; padding:10px 12px; position:sticky; top:0; z-index:100; background:#0b0f14; border-bottom:1px solid rgba(255,255,255,.06)}
-  h1{font-size:16px; margin:0}
+  :root { --bg:#0b0f14; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; }
+  body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--fg);display:grid;grid-template-rows:auto 1fr auto;height:100vh}
+  header{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#111827}
+  h1{font-size:16px;margin:0}
   .sp{flex:1}
-  .iconBtn{height:36px; padding:0 12px; display:inline-grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer; color:#fff}
-  .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
-
-  .tabs{position:sticky; top:52px; z-index:99; display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:#0b0f14; overflow:auto}
-  .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap}
-  .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.6)}
-  .page{display:none; height:100%}
+  .iconBtn{padding:6px 12px;border-radius:8px;background:#1f2937;color:#fff;cursor:pointer}
+  .badge{font-size:12px;padding:2px 6px;border:1px solid #555;border-radius:6px}
+  nav{display:flex;overflow-x:auto;background:#0f172a}
+  .tab{padding:8px 12px;cursor:pointer}
+  .tab[aria-selected="true"]{background:#1f2937;border-bottom:2px solid var(--accent)}
+  .page{display:none;height:100%}
   .page.active{display:block}
-
-  /* Layout: left rail + stage */
-  .stageWrap{position:relative; height:calc(100vh - 210px); min-height:360px; display:grid; grid-template-columns:88px 1fr; gap:0; overflow:hidden}
-  .leftRail{position:relative; display:grid; grid-auto-rows:min-content; gap:12px; padding:12px 8px; background:linear-gradient(90deg, rgba(59,130,246,.20), rgba(59,130,246,.06)); border-right:1px solid rgba(255,255,255,.06); z-index:5}
-  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:#e5eef7; cursor:pointer; font-weight:700}
-  .btn.primary{border-color:rgba(96,165,250,.6); background:rgba(96,165,250,.15)}
-  .btn.ok{border-color:rgba(52,211,153,.6); background:rgba(52,211,153,.15)}
-  .btn.danger{border-color:rgba(248,113,113,.7); background:rgba(248,113,113,.18)}
-  .btn.playing{border-color:rgba(52,211,153,.9); background:rgba(52,211,153,.3)}
-  .railBtnTall{height:120px; white-space:normal; line-height:1.1}
-
-  .stage{position:relative; overflow:hidden; display:grid; place-items:center}
-  .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center; overflow:hidden}
-  img.photo{max-width:88vw; max-height:72vh; object-fit:contain; border-radius:18px; box-shadow:0 12px 36px rgba(0,0,0,.6); opacity:0; transition:opacity .18s ease}
+  .stageWrap{display:grid;grid-template-columns:90px 1fr;height:100%}
+  .leftRail{display:grid;grid-auto-rows:min-content;gap:10px;padding:10px;background:rgba(59,130,246,.15)}
+  .btn{padding:10px;border-radius:8px;background:#1f2937;color:#fff;cursor:pointer;font-weight:bold}
+  .btn.playing{background:rgba(52,211,153,.3)}
+  #showThisName,#nextPhoto{height:120px}
+  .stage{position:relative;display:grid;place-items:center;overflow:hidden}
+  img.photo{max-width:88vw;max-height:72vh;object-fit:contain;border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,.6);opacity:0;transition:opacity .2s}
   img.photo.show{opacity:1}
-
-  /* Click zones live only within stage area (not covering tabs) */
-  .hotzone{position:absolute; top:0; bottom:0; z-index:2}
-  .hotzone.left{left:0; width:33.333%}
-  .hotzone.right{right:0; width:66.667%}
-
-  /* Name overlay (bottom ~30%) */
-  .nameOverlay{position:absolute; left:50%; bottom:6%; transform:translateX(-50%); width:min(92%, 820px);
-    background:linear-gradient(180deg, rgba(2,6,23,0), rgba(2,6,23,.92));
-    border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px 16px; text-align:center}
+  .nameOverlay{position:absolute;left:50%;bottom:5%;transform:translateX(-50%);background:rgba(0,0,0,.7);padding:10px 14px;border-radius:12px;text-align:center}
   .nameOverlay.collapsed{display:none}
-  .title{font-size:22px; font-weight:800}
-
-  .linkTopRight{position:fixed; right:16px; top:100px; z-index:98; border-radius:10px; height:32px; padding:0 10px}
-
-  .builder{padding:12px}
-  .hint{font-size:13px; color:var(--muted); margin:6px 0 10px}
-  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
-  .termBtn{padding:12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
-  .termBtn.selected{outline:2px solid var(--accent); background:#1f2937}
-  .termBtn.editing{outline:2px dashed #fbbf24}
-
-  .builderActions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center}
-
-  footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:#a9b6c7; border-top:1px solid rgba(255,255,255,.06)}
-  footer a{color:#86efac; text-decoration:none}
-
-  @media (max-width: 768px){
-    .stageWrap{grid-template-columns:76px 1fr}
-    img.photo{max-width:92vw; max-height:66vh}
-    .linkTopRight{top:96px}
-  }
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .termBtn{padding:10px;background:#1f2937;border-radius:8px;cursor:pointer}
+  .termBtn.selected{outline:2px solid var(--accent)}
+  footer{padding:8px 12px;font-size:12px;background:#111827}
 </style>
 </head>
 <body>
 <header>
-  <h1>🎞️ Celeb Slideshow</h1>
-  <span class="badge" id="countBadge">—</span>
+  <h1>🎞️ Slideshow</h1>
+  <span id="countBadge" class="badge">—</span>
   <div class="sp"></div>
-  <button class="iconBtn" id="gearBtn" title="Settings (toggle)">⚙️</button>
-  <button class="iconBtn" id="nextTabBtn" title="Next page">➡️</button>
+  <button id="gearBtn" class="iconBtn">⚙️</button>
 </header>
 
-<nav class="tabs" role="tablist" id="tabsBar">
-  <button class="tab" role="tab" aria-controls="page1" aria-selected="true" id="tab1">Page 1: Slideshow</button>
-  <button class="tab" role="tab" aria-controls="page2" aria-selected="false" id="tab2">Page 2: Categories A</button>
-  <button class="tab" role="tab" aria-controls="page3" aria-selected="false" id="tab3">Page 3: Categories B</button>
-  <button class="tab" role="tab" aria-controls="page4" aria-selected="false" id="tab4">Page 4: Categories C</button>
-  <button class="tab" role="tab" aria-controls="page5" aria-selected="false" id="tab5">Page 5: Settings</button>
+<nav>
+  <button id="tab1" class="tab" aria-selected="true">Page 1</button>
+  <button id="tab2" class="tab">Page 2</button>
+  <button id="tab3" class="tab">Page 3</button>
+  <button id="tab4" class="tab">Page 4</button>
+  <button id="tab5" class="tab">Page 5</button>
 </nav>
 
-<button class="iconBtn linkTopRight" id="openLinkHeader" title="Open related page">🔗 Link</button>
-
 <main>
-  <!-- PAGE 1 -->
-  <section id="page1" class="page active" role="tabpanel" aria-labelledby="tab1">
+  <!-- Page 1 -->
+  <section id="page1" class="page active">
     <div class="stageWrap">
       <div class="leftRail">
-        <button class="btn" id="hideAllNames">Hide</button>
-        <button class="btn primary railBtnTall" id="cornerPlayStop">⏯️</button>
-        <button class="btn railBtnTall" id="showThisName">Show</button>
-        <button class="btn railBtnTall" id="nextPhoto">Next</button>
+        <button id="hideAllNames" class="btn">Hide</button>
+        <button id="cornerPlayStop" class="btn">▶️</button>
+        <button id="showThisName" class="btn">Show</button>
+        <button id="nextPhoto" class="btn">Next</button>
       </div>
-      <div class="stage" id="stage">
-        <div class="imgwrap" id="imgwrap"><div class="hint" style="opacity:.7">Fetching photos…</div></div>
-        <div class="hotzone left" id="zoneLeft" title="Previous photo"></div>
-        <div class="hotzone right" id="zoneRight" title="Next photo"></div>
-        <div class="nameOverlay collapsed" id="nameOverlay"><div class="title" id="entityName">&nbsp;</div></div>
+      <div class="stage">
+        <div id="imgwrap"></div>
+        <div id="nameBar" class="nameOverlay"><div id="entityName"></div></div>
       </div>
     </div>
   </section>
 
-  <!-- PAGE 2 -->
-  <section id="page2" class="page" role="tabpanel" aria-labelledby="tab2">
-    <div class="builder">
-      <div class="hint">Tap to select (blue). <strong>Triple-click</strong> to rename (or long-press). <kbd>Alt+C</kbd> clears all selected categories.</div>
-      <div class="grid" id="termGrid1"></div>
-      <div class="builderActions">
-        <input type="text" id="customTerm1" placeholder="Add a custom term… (e.g., cars of 2010)" />
-        <button class="btn ok" id="addTerm1">Add</button>
-        <div class="sp"></div>
-        <button class="btn danger" id="clearAllSelBtn1">Clear ALL</button>
-      </div>
-    </div>
+  <!-- Page 2: Occupations -->
+  <section id="page2" class="page">
+    <div class="grid" id="grid2"></div>
+    <button id="clearAll2" class="btn">Clear All</button>
   </section>
 
-  <!-- PAGE 3 -->
-  <section id="page3" class="page" role="tabpanel" aria-labelledby="tab3">
-    <div class="builder">
-      <div class="hint">Tap to select (blue). <strong>Triple-click</strong> to rename (or long-press). <kbd>Alt+C</kbd> clears all selected categories.</div>
-      <div class="grid" id="termGrid2"></div>
-      <div class="builderActions">
-        <input type="text" id="customTerm2" placeholder="Add a custom term…" />
-        <button class="btn ok" id="addTerm2">Add</button>
-        <div class="sp"></div>
-        <button class="btn danger" id="clearAllSelBtn2">Clear ALL</button>
-      </div>
-    </div>
+  <!-- Page 3: Nationalities -->
+  <section id="page3" class="page">
+    <div class="grid" id="grid3"></div>
+    <button id="clearAll3" class="btn">Clear All</button>
   </section>
 
-  <!-- PAGE 4 -->
-  <section id="page4" class="page" role="tabpanel" aria-labelledby="tab4">
-    <div class="builder">
-      <div class="hint">Tap to select (blue). <strong>Triple-click</strong> to rename (or long-press). <kbd>Alt+C</kbd> clears all selected categories.</div>
-      <div class="grid" id="termGrid3"></div>
-      <div class="builderActions">
-        <input type="text" id="customTerm3" placeholder="Add a custom term…" />
-        <button class="btn ok" id="addTerm3">Add</button>
-        <div class="sp"></div>
-        <button class="btn danger" id="clearAllSelBtn3">Clear ALL</button>
-      </div>
-    </div>
+  <!-- Page 4: Characters/Objects -->
+  <section id="page4" class="page">
+    <div class="grid" id="grid4"></div>
+    <button id="clearAll4" class="btn">Clear All</button>
   </section>
 
-  <!-- PAGE 5 (Settings) -->
-  <section id="page5" class="page" role="tabpanel" aria-labelledby="tab5">
-    <div class="builder" style="max-width:880px">
-      <div class="hint">Timing controls. Tap the ⚙️ gear again to exit Settings.</div>
-      <div style="display:grid; gap:14px; padding:8px; background:#0f172a; border:1px solid rgba(255,255,255,.08); border-radius:12px">
-        <div><strong>Slide speed</strong> <span class="hint">(±1s / ±0.2s steps)</span></div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
-          <button class="btn" data-speed="-1">−1s</button>
-          <button class="btn" data-speed="+1">＋1s</button>
-          <button class="btn" data-speed="-0.2">−0.2s</button>
-          <button class="btn" data-speed="+0.2">＋0.2s</button>
-          <div style="margin-left:auto"><span class="hint">Total:</span> <strong id="fineTotal">2.0s</strong></div>
-        </div>
-
-        <div><strong>Name reveal delay</strong> <span class="hint">(±1s / ±0.2s steps)</span></div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
-          <button class="btn" data-nd="-1">−1s</button>
-          <button class="btn" data-nd="+1">＋1s</button>
-          <button class="btn" data-nd="-0.2">−0.2s</button>
-          <button class="btn" data-nd="+0.2">＋0.2s</button>
-          <div style="margin-left:auto"><span class="hint">Total:</span> <strong id="nameTotal">0.5s</strong></div>
-        </div>
-      </div>
-
-      <div style="display:grid; gap:10px; margin-top:12px">
-        <button class="btn ok" id="exportBtn">Export categories → JSON</button>
-        <textarea id="jsonBox" placeholder='Paste JSON here to import…' style="height:160px; width:100%; background:#0b1220; color:#e5eef7; border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:10px"></textarea>
-        <div style="display:flex; gap:8px; flex-wrap:wrap">
-          <button class="btn ok" id="importBtn">Import JSON</button>
-          <button class="btn" id="resetBtn">Reset to defaults</button>
-        </div>
-      </div>
-    </div>
+  <!-- Page 5: Settings -->
+  <section id="page5" class="page">
+    <div><strong>Slide speed</strong></div>
+    <input id="speedInput" type="number" step="0.2" min="0.2" value="5"> seconds
+    <div><strong>Name reveal delay</strong></div>
+    <input id="revealInput" type="number" step="0.2" min="0.2" value="3"> seconds
   </section>
 </main>
 
 <footer>
-  <div>
-    PC: <strong>ArrowRight/ArrowLeft</strong> = switch pages. <kbd>Space</kbd>/<kbd>P</kbd> = play/pause. <kbd>Alt+C</kbd> = Clear ALL (categories).  
-    While renaming/typing, hotkeys are disabled. Mobile: <strong>swipe left/right</strong> to switch pages.
-  </div>
-  <div class="sp"></div>
-  <a href="#" id="downloadLink" title="Download current image">Download</a>
+  PC: → / ← changes pages. Space = Play/Pause. Alt+C = Clear All.
 </footer>
 
-<div class="toast" id="toast" style="display:none"></div>
-
 <script>
-(function(){
-  /* ===== Tabs + swipe pages ===== */
-  const tabs = [1,2,3,4,5].map(i=>({ tab: document.getElementById('tab'+i), page: document.getElementById('page'+i) }));
-  function setPage(idx){
-    tabs.forEach((t,i)=>{ const on=(i+1)===idx; t.page.classList.toggle('active', on); t.tab.setAttribute('aria-selected', String(on)); });
-  }
-  tabs.forEach((t,i)=> t.tab.addEventListener('click', ()=> setPage(i+1)));
-  document.getElementById('nextTabBtn').addEventListener('click', ()=>{
-    const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1;
-    setPage(idx%5 + 1);
-  });
-  document.getElementById('gearBtn').addEventListener('click', ()=>{
-    const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1;
-    setPage(idx===5 ? 1 : 5);
-  });
+const tabs=[1,2,3,4,5].map(i=>document.getElementById("tab"+i));
+const pages=[1,2,3,4,5].map(i=>document.getElementById("page"+i));
+function setPage(i){pages.forEach((p,idx)=>p.classList.toggle("active",idx===i-1));tabs.forEach((t,idx)=>t.setAttribute("aria-selected",idx===i-1));}
+tabs.forEach((t,i)=>t.addEventListener("click",()=>setPage(i+1)));
+document.getElementById("gearBtn").onclick=()=>{const i=pages.findIndex(p=>p.classList.contains("active"));setPage(i===4?1:5)}
 
-  // swipe navigation (Samsung Browser OK). ignore while typing.
-  function isTyping(t){ const tag=(t?.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||t?.isContentEditable; }
-  let swipeStart=null;
-  document.addEventListener('touchstart', (e)=>{ if(isTyping(e.target)) return; const t=e.changedTouches[0]; swipeStart={x:t.clientX,y:t.clientY}; }, {passive:true});
-  document.addEventListener('touchend', (e)=>{ if(!swipeStart || isTyping(e.target)) return; const t=e.changedTouches[0]; const dx=t.clientX-swipeStart.x; const dy=t.clientY-swipeStart.y; if(Math.abs(dx)>42 && Math.abs(dy)<60){ const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; if(dx<0 && idx<5) setPage(idx+1); if(dx>0 && idx>1) setPage(idx-1); } swipeStart=null; }, {passive:true});
+// categories
+const occ=["Actors","Singers","Musicians","Writers","Models","Politicians","Directors","Comedians","Scientists","Inventors","Historical figures"];
+const nat=["Norwegian","Swedish","Danish","German","French","Spanish","British","American"];
+const obj=["Famous movie characters","Famous cartoon characters","Superheroes","Video game characters","Cars","Musical instruments","Tools","Household appliances"];
 
-  /* ===== Slideshow elements ===== */
-  const imgwrap = document.getElementById('imgwrap');
-  const nameOverlay = document.getElementById('nameOverlay');
-  const entityName = document.getElementById('entityName');
-  const hideAllNamesBtn = document.getElementById('hideAllNames');
-  const showThisNameBtn = document.getElementById('showThisName');
-  const nextPhotoBtn = document.getElementById('nextPhoto');
-  const cornerPlayStop = document.getElementById('cornerPlayStop');
-  const openLinkHeader = document.getElementById('openLinkHeader');
-  const countBadge = document.getElementById('countBadge');
-  const downloadLink = document.getElementById('downloadLink');
-  const toast = document.getElementById('toast');
+function makeBtn(label,grid){let b=document.createElement("button");b.className="termBtn";b.textContent=label;b.onclick=()=>b.classList.toggle("selected");let clicks=0;b.addEventListener("click",()=>{clicks++;if(clicks>=3){clicks=0;let input=document.createElement("input");input.value=label;b.innerHTML="";b.appendChild(input);input.focus();input.onblur=()=>{label=input.value;b.textContent=label};}});grid.appendChild(b);}
+occ.forEach(c=>makeBtn(c,document.getElementById("grid2")));
+nat.forEach(c=>makeBtn(c,document.getElementById("grid3")));
+obj.forEach(c=>makeBtn(c,document.getElementById("grid4")));
 
-  /* ===== Category grids ===== */
-  const catGrids = [
-    { grid: document.getElementById('termGrid1'), input: document.getElementById('customTerm1'), add: document.getElementById('addTerm1'), clearAllBtn: document.getElementById('clearAllSelBtn1') },
-    { grid: document.getElementById('termGrid2'), input: document.getElementById('customTerm2'), add: document.getElementById('addTerm2'), clearAllBtn: document.getElementById('clearAllSelBtn2') },
-    { grid: document.getElementById('termGrid3'), input: document.getElementById('customTerm3'), add: document.getElementById('addTerm3'), clearAllBtn: document.getElementById('clearAllSelBtn3') },
-  ];
+function clearAll(){document.querySelectorAll(".termBtn.selected").forEach(b=>b.classList.remove("selected"));}
+document.getElementById("clearAll2").onclick=clearAll;
+document.getElementById("clearAll3").onclick=clearAll;
+document.getElementById("clearAll4").onclick=clearAll;
 
-  /* ===== State ===== */
-  let items = []; let timer=null; let autoplay=false; let currIndex=-1;
-  let globalHideNames=false; let perSlideReveal=false; let currentLink='#';
-  let slideSeconds = 2.0; let nameDelay = 500;
+// slideshow basics
+let items=[],curr=0,autoplay=false,timer=null;
+const imgwrap=document.getElementById("imgwrap"),nameBar=document.getElementById("nameBar"),entityName=document.getElementById("entityName");
+function show(i){if(!items.length)return;curr=(i+items.length)%items.length;let it=items[curr];let img=new Image();img.onload=()=>{img.className="photo show";imgwrap.innerHTML="";imgwrap.appendChild(img);entityName.textContent=it;nameBar.classList.add("collapsed");setTimeout(()=>nameBar.classList.remove("collapsed"),revealDelay*1000)};img.src="https://picsum.photos/800/600?random="+Math.random();}
+function next(){show(curr+1)}function prev(){show(curr-1)}
+function start(){if(timer)clearInterval(timer);timer=setInterval(next,slideSeconds*1000);autoplay=true;playBtn.textContent="⏹";playBtn.classList.add("playing");}
+function stop(){clearInterval(timer);autoplay=false;playBtn.textContent="▶️";playBtn.classList.remove("playing");}
+let slideSeconds=5,revealDelay=3;
+document.getElementById("speedInput").oninput=e=>slideSeconds=parseFloat(e.target.value)||5;
+document.getElementById("revealInput").oninput=e=>revealDelay=parseFloat(e.target.value)||3;
+const playBtn=document.getElementById("cornerPlayStop");
+playBtn.onclick=()=>autoplay?stop():start();
+document.getElementById("hideAllNames").onclick=()=>nameBar.classList.toggle("collapsed");
+document.getElementById("showThisName").onclick=()=>nameBar.classList.remove("collapsed");
+document.getElementById("nextPhoto").onclick=()=>{stop();next()};
 
-  function showToast(msg, ms=1200){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=> toast.style.display='none', ms); }
-  function clampStep(x){ return Math.round(x*5)/5; } // 0.2s steps
+// demo items
+items=["Demo 1","Demo 2","Demo 3"];show(0);
 
-  /* ===== Build & manage category tiles (NO pencil icon) ===== */
-  function makeTermButton(label, gridEl){
-    const btn=document.createElement('button');
-    btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label;
-
-    // triple-click to rename; single-click toggles selected
-    let clicks=0, cTimer=null;
-    btn.addEventListener('click', ()=>{
-      clicks++;
-      if(clicks>=3){ clearTimeout(cTimer); clicks=0; startEdit(btn); return; }
-      clearTimeout(cTimer);
-      cTimer=setTimeout(()=>{ clicks=0; btn.classList.toggle('selected'); debouncedApply(); }, 220);
-    });
-
-    // long-press rename (mobile)
-    let pTimer=null;
-    btn.addEventListener('touchstart', ()=>{ pTimer=setTimeout(()=> startEdit(btn), 600); }, {passive:true});
-    ['touchend','touchmove','touchcancel'].forEach(ev=> btn.addEventListener(ev, ()=> clearTimeout(pTimer), {passive:true}));
-
-    function startEdit(button){
-      if(button.classList.contains('editing')) return;
-      button.classList.add('editing');
-      const prev = button.dataset.term || button.textContent.trim();
-      const input = document.createElement('input');
-      input.type='text'; input.value=prev;
-      input.style.width='100%'; input.style.padding='8px 10px';
-      input.style.borderRadius='8px'; input.style.border='1px solid rgba(255,255,255,.25)';
-      input.style.background='#0f172a'; input.style.color='#e5eef7';
-      button.innerHTML=''; button.appendChild(input); input.focus(); input.select();
-      function finish(save){
-        const v = save ? (input.value.trim()||prev) : prev;
-        button.classList.remove('editing'); button.innerHTML=''; button.dataset.term=v; button.textContent=v;
-        // keep selection state; reapply if content changed
-        if(save) debouncedApply();
-      }
-      input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') finish(true); if(e.key==='Escape') finish(false); });
-      input.addEventListener('blur', ()=> finish(true));
-    }
-
-    gridEl.appendChild(btn);
-    return btn;
-  }
-
-  function ensureMinTiles(){ const total = catGrids.reduce((n,g)=> n + g.grid.querySelectorAll('.termBtn').length, 0); for(let i=total;i<48;i++){ const gi=Math.min(Math.floor(i/16), catGrids.length-1); makeTermButton('Custom term', catGrids[gi].grid); } }
-  function attachAddHandlers(){
-    catGrids.forEach(g=>{
-      if(g.add){ g.add.onclick = ()=>{ const t=(g.input.value||'').trim(); if(!t) return;
-        const count=g.grid.querySelectorAll('.termBtn').length;
-        if(count>=16){ const nextIndex=catGrids.indexOf(g)+1; makeTermButton(t, catGrids[Math.min(nextIndex, catGrids.length-1)].grid); }
-        else { makeTermButton(t, g.grid); }
-        g.input.value='';
-      }; }
-      g.clearAllBtn.addEventListener('click', ()=> clearAllSelected());
-    });
-  }
-
-  function clearAllSelected(){
-    catGrids.forEach(pg=> pg.grid.querySelectorAll('.termBtn.selected').forEach(b=> b.classList.remove('selected')));
-    items=[]; currIndex=-1; countBadge.textContent='0'; stopAutoplay();
-    imgwrap.innerHTML='<div class="hint" style="opacity:.7">Selection cleared. Choose categories on Pages 2–4.</div>';
-  }
-
-  function populateDefaults(){
-    catGrids.forEach(g=> g.grid.innerHTML='');
-    const presets = [
-      'Norwegian celebs','US celebs','Norwegian politicians','Norwegian ceo','US ceo','World ceo','Music producers',
-      "Models of the 50's","Models of the 80's",'famous movie characters','famous cartoon characters',
-      'objects','household objects','clutter home objects','cars','cars of 2010','cars of 2025',
-      'Norwegian actors','Norwegian musicians','Norwegian writers','UK celebrity','British actors',
-      'actors 2025','singers 2024','bands 2024','scientists','historical figures in science','historical leaders','historical pioneers'
-    ];
-    presets.forEach((p,i)=>{ const gi=Math.min(Math.floor(i/16), catGrids.length-1); makeTermButton(p, catGrids[gi].grid); });
-    ensureMinTiles(); attachAddHandlers();
-  }
-
-  /* ===== Wikidata queries ===== */
-  function H(lines){ return `{ ?person wdt:P31 wd:Q5 ; ${lines.join(' ')} wdt:P18 ?image . BIND(?person AS ?entity) }`; }
-  function F(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} BIND(?person AS ?entity) }`; }
-  function T(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . BIND(?thing AS ?entity) }`; }
-
-  const CATEGORY_BLOCKS = {
-    'Norwegian celebs': () => H([ 'wdt:P27 wd:Q20 ;' ]),
-    'US celebs': () => H([ 'wdt:P27 wd:Q30 ;' ]),
-    'Norwegian politicians': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P106 wd:Q82955 ;' ]),
-    'Norwegian ceo': () => H([ 'wdt:P27 wd:Q20 ;', 'wdt:P39 wd:Q484876 ;' ]),
-    'US ceo': () => H([ 'wdt:P27 wd:Q30 ;', 'wdt:P39 wd:Q484876 ;' ]),
-    'World ceo': () => H([ 'wdt:P39 wd:Q484876 ;' ]),
-    'Music producers': () => H([ 'wdt:P106 wd:Q183945 ;' ]),
-    "Models of the 50's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image .
-        OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . }
-        FILTER( (BOUND(?start) && year(?start) <= 1959) || (BOUND(?end) && year(?end) >= 1950) || (!BOUND(?start) && !BOUND(?end)) )
-        BIND(?person AS ?entity) }`,
-    "Models of the 80's": () => `{ ?person wdt:P31 wd:Q5 ; wdt:P106 wd:Q4610556 ; wdt:P18 ?image .
-        OPTIONAL { ?person wdt:P2031 ?start . } OPTIONAL { ?person wdt:P2032 ?end . }
-        FILTER( (BOUND(?start) && year(?start) <= 1989) || (BOUND(?end) && year(?end) >= 1980) || (!BOUND(?start) && !BOUND(?end)) )
-        BIND(?person AS ?entity) }`,
-    'famous movie characters': () => F([ ' ?person wdt:P31 wd:Q15773347 . ' ]),
-    'famous cartoon characters': () => F([ ' { ?person wdt:P31 wd:Q15711870 . } UNION { ?person wdt:P31 wd:Q373494 . } ' ]),
-    'objects': () => T([ ' ?thing wdt:P31/wdt:P279* wd:Q488383 . ' ]),
-    'household objects': () => T([ ' { ?thing wdt:P31/wdt:P279* wd:Q478017 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q1491801 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q319541 . } ' ]),
-    'clutter home objects': () => T([ ' { ?thing wdt:P31/wdt:P279* wd:Q1491801 . } UNION { ?thing wdt:P31/wdt:P279* wd:Q478017 . } ' ]),
-    'cars': () => T([ ' { ?thing wdt:P31 wd:Q1420 . } UNION { ?thing wdt:P31 wd:Q3231690 . } ' ]),
-    'actors 2025': () => H([ 'wdt:P106 wd:Q33999 ;' ]),
-    'singers 2024': () => H([ 'wdt:P106 wd:Q177220 ;' ]),
-    'bands 2024': () => T([ ' ?thing wdt:P31 wd:Q215380 . ' ]),
-    'scientists': () => H([ 'wdt:P106 wd:Q901 . ' ]),
-    'historical figures in science': () => H([ 'wdt:P106 wd:Q901 . ' ]),
-    'historical leaders': () => H([ 'wdt:P106 wd:Q82955 . ' ]),
-    'historical pioneers': () => H([ 'wdt:P106 wd:Q200217 . ' ]),
-  };
-
-  function parseDynamicTerm(term){
-    const t = term.toLowerCase().trim();
-    const m = t.match(/(\d{4})/);
-    if(/\bcars?\b/.test(t) && m){
-      const y=+m[1];
-      return `{ ?thing wdt:P18 ?image . { ?thing wdt:P31 wd:Q3231690 . OPTIONAL { ?thing wdt:P571 ?inception . } FILTER(BOUND(?inception) && year(?inception) = ${y}) } BIND(?thing AS ?entity) }`;
-    }
-    if(/\bobjects?\b/.test(t)) return CATEGORY_BLOCKS['objects']();
-    if(/household/.test(t)) return CATEGORY_BLOCKS['household objects']();
-    if(/clutter/.test(t)) return CATEGORY_BLOCKS['clutter home objects']();
-    if(/\bcars?\b/.test(t)) return CATEGORY_BLOCKS['cars']();
-    return null;
-  }
-
-  async function sparqlQuery(q){
-    const endpoint='https://query.wikidata.org/sparql';
-    const body = new URLSearchParams(); body.set('query', q);
-    const res = await fetch(endpoint, { method:'POST', headers:{'Accept':'application/sparql-results+json','Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, body });
-    if(!res.ok){ const t=await res.text().catch(()=> ''); throw new Error('WDQS '+res.status+' '+t.slice(0,120)); }
-    return res.json();
-  }
-
-  async function fetchForSingleTerm(term){
-    function blockFor(t){
-      const fixed = CATEGORY_BLOCKS[t] || CATEGORY_BLOCKS[t.replace(/celbs/i,'celebs')];
-      if(fixed) return fixed();
-      const dyn = parseDynamicTerm(t); if(dyn) return dyn;
-      return `{ ?person wdt:P31 wd:Q5 ; wdt:P18 ?image . BIND(?person AS ?entity) }`;
-    }
-    const q = `SELECT ?entity ?entityLabel ?image WHERE {
-      ${blockFor(term)}
-      SERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,no,en". }
-    } LIMIT 120`;
-
-    const data = await sparqlQuery(q);
-    const rows = (data.results && data.results.bindings) || [];
-    return rows.map(r=>{
-      const name = r.entityLabel?.value || 'Untitled';
-      let raw = r.image?.value || '';
-      let imageUrl = '', fileTitle = 'File:';
-      if(raw.includes('Special:FilePath/')){
-        imageUrl = raw + (raw.includes('?')? '&':'?') + 'width=1600';
-        try{ fileTitle += decodeURIComponent(raw.split('Special:FilePath/')[1].split('?')[0]); }catch{}
-      } else {
-        let fn = raw;
-        try{ if(fn.startsWith('http')){ const u=new URL(fn); fn=decodeURIComponent(u.pathname.split('/').pop()); } }catch{}
-        fn = fn.replace(/^.*File:/,''); if(!fn) return null;
-        imageUrl = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(fn) + '?width=1600';
-        fileTitle = 'File:'+fn;
-      }
-      const itemUrl = r.entity?.value || '#';
-      return { name, imageUrl, fileTitle, itemUrl, __cat: term };
-    }).filter(Boolean);
-  }
-
-  function interleaveBuckets(buckets){
-    const shuffled = buckets.map(arr => arr.sort(()=>Math.random()-0.5));
-    const out=[]; let i=0; let added=true;
-    while(added){ added=false; for(let b=0;b<shuffled.length;b++){ const pick=shuffled[b][i]; if(pick){ out.push(pick); added=true; } } i++; }
-    return out.sort(()=>Math.random()-0.5);
-  }
-
-  async function fetchAttribution(fileTitle){
-    try{
-      const url='https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=extmetadata|url&titles='+encodeURIComponent(fileTitle);
-      const res=await fetch(url); const data=await res.json();
-      const page = data?.query?.pages ? Object.values(data.query.pages)[0] : null;
-      const info = page?.imageinfo?.[0];
-      const filePageUrl = page?.fullurl || ('https://commons.wikimedia.org/wiki/'+encodeURIComponent(fileTitle));
-      return { filePageUrl };
-    }catch(_){ return { filePageUrl:'#' }; }
-  }
-
-  /* ===== Slideshow ===== */
-  let currentImg=null;
-  function swapIn(img){
-    const prev=currentImg;
-    currentImg=img; currentImg.classList.add('photo','show');
-    imgwrap.appendChild(currentImg);
-    if(prev){ prev.addEventListener('transitionend', ()=>{ try{ imgwrap.removeChild(prev); }catch{} }, {once:true}); prev.classList.remove('show'); }
-  }
-
-  async function showIndex(i){
-    if(!items.length) return;
-    currIndex = (i + items.length) % items.length;
-    const it = items[currIndex];
-    const img = new Image(); img.decoding='async'; img.referrerPolicy='no-referrer';
-    img.onload = async ()=>{
-      swapIn(img);
-      entityName.textContent = it.name;
-      nameOverlay.classList.add('collapsed');
-      const att = await fetchAttribution(it.fileTitle).catch(()=>({filePageUrl:'#'}));
-      currentLink = it.itemUrl && it.itemUrl!=='#' ? it.itemUrl : att.filePageUrl || '#';
-      downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,'');
-      setTimeout(()=>{ const shouldShow = (!globalHideNames) || perSlideReveal; if(shouldShow) nameOverlay.classList.remove('collapsed'); perSlideReveal=false; }, nameDelay);
-    };
-    img.onerror = ()=> next(); // skip failed
-    img.src = it.imageUrl;
-  }
-  function next(){ showIndex((currIndex+1)%items.length); }
-  function prev(){ showIndex((currIndex-1+items.length)%items.length); }
-
-  function startAutoplay(){ if(timer) clearInterval(timer); timer=setInterval(next, Math.max(0.1,slideSeconds)*1000); autoplay=true; cornerPlayStop.classList.add('playing'); }
-  function stopAutoplay(){ if(timer) clearInterval(timer); timer=null; autoplay=false; cornerPlayStop.classList.remove('playing'); }
-
-  // Click zones & rail
-  document.getElementById('zoneLeft').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
-  document.getElementById('zoneRight').addEventListener('click', ()=>{ stopAutoplay(); next(); });
-  nextPhotoBtn.addEventListener('click', ()=>{ stopAutoplay(); next(); });
-  cornerPlayStop.addEventListener('click', ()=>{ if(autoplay) stopAutoplay(); else startAutoplay(); });
-  hideAllNamesBtn.addEventListener('click', ()=>{ globalHideNames=!globalHideNames; nameOverlay.classList.toggle('collapsed', globalHideNames); hideAllNamesBtn.textContent=globalHideNames?'Show':'Hide'; });
-  showThisNameBtn.addEventListener('click', ()=>{ if(globalHideNames){ perSlideReveal=true; nameOverlay.classList.remove('collapsed'); } });
-  openLinkHeader.addEventListener('click', ()=>{ if(currentLink && currentLink!=='#') window.open(currentLink, '_blank', 'noopener'); });
-
-  /* ===== PC hotkeys ===== */
-  let lastKeyTime=0;
-  document.addEventListener('keydown', (e)=>{
-    if(isTyping(e.target)) return;
-    const now=Date.now(); if(now-lastKeyTime<120) return; lastKeyTime=now;
-    const key=(e.key||'').toLowerCase();
-
-    // Page navigation on arrow keys
-    if(key==='arrowright'){ e.preventDefault(); const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; setPage(idx%5 + 1); return; }
-    if(key==='arrowleft'){ e.preventDefault(); const idx = tabs.findIndex(t=> t.page.classList.contains('active')) + 1; setPage(idx===1?5:idx-1); return; }
-
-    // Clear ALL (Alt+C)
-    if(e.altKey && key==='c'){ e.preventDefault(); clearAllSelected(); return; }
-
-    // Play/pause & name toggle remain
-    if(e.code==='Space' || key==='p'){ e.preventDefault(); if(autoplay) stopAutoplay(); else startAutoplay(); return; }
-    if(key==='s'){ e.preventDefault(); globalHideNames=!globalHideNames; nameOverlay.classList.toggle('collapsed', globalHideNames); hideAllNamesBtn.textContent=globalHideNames?'Show':'Hide'; return; }
-  });
-
-  /* ===== Settings (Page 5) ===== */
-  function updateSpeedDisplay(){ document.getElementById('fineTotal').textContent = (Math.max(0.1,slideSeconds)).toFixed(1)+'s'; }
-  function updateNameDisplay(){ document.getElementById('nameTotal').textContent = (nameDelay/1000).toFixed(1)+'s'; }
-  document.querySelectorAll('[data-speed]').forEach(b=> b.addEventListener('click', ()=>{
-    const d = parseFloat(b.dataset.speed); slideSeconds = clampStep((slideSeconds||2)+d); updateSpeedDisplay(); if(autoplay) startAutoplay();
-  }));
-  document.querySelectorAll('[data-nd]').forEach(b=> b.addEventListener('click', ()=>{
-    const d = parseFloat(b.dataset.nd); const val = Math.max(0, (nameDelay/1000)+d); nameDelay = Math.round(clampStep(val)*1000); updateNameDisplay();
-  }));
-  updateSpeedDisplay(); updateNameDisplay();
-
-  /* ===== Export/Import/Reset ===== */
-  const exportBtn = document.getElementById('exportBtn');
-  const importBtn = document.getElementById('importBtn');
-  const resetBtn = document.getElementById('resetBtn');
-  const jsonBox = document.getElementById('jsonBox');
-
-  function gatherTiles(){ const tiles=[]; catGrids.forEach(g=> g.grid.querySelectorAll('.termBtn').forEach(b=> tiles.push({label:b.dataset.term||b.textContent.trim(), selected:b.classList.contains('selected')}))); return tiles; }
-  function renderFromTiles(tiles){ catGrids.forEach(g=> g.grid.innerHTML=''); tiles.forEach((t,i)=>{ const gi=Math.min(Math.floor(i/16), catGrids.length-1); const b=makeTermButton(t.label, catGrids[gi].grid); if(t.selected) b.classList.add('selected'); }); ensureMinTiles(); attachAddHandlers(); debouncedApply(); }
-  exportBtn?.addEventListener('click', ()=>{ jsonBox.value = JSON.stringify({version:4, tiles:gatherTiles()}, null, 2); showToast('Exported categories.'); });
-  importBtn?.addEventListener('click', ()=>{ try{ const obj=JSON.parse(jsonBox.value||'{}'); if(!Array.isArray(obj.tiles)) throw new Error('Invalid JSON'); renderFromTiles(obj.tiles.map(x=>({label:x.label, selected:!!x.selected}))); }catch(e){ showToast('Import failed: '+e.message, 1600); } });
-  resetBtn?.addEventListener('click', ()=>{ populateDefaults(); debouncedApply(); });
-
-  /* ===== Apply selection with mixing ===== */
-  async function applySelection(){
-    const chosen=[]; catGrids.forEach(g=> g.grid.querySelectorAll('.termBtn.selected').forEach(b=>{ const t=b.dataset.term||b.textContent.trim(); if(t) chosen.push(t); }));
-    if(!chosen.length){ items=[]; currIndex=-1; countBadge.textContent='0'; imgwrap.innerHTML='<div class="hint" style="opacity:.7">Select categories on Pages 2–4, or swipe right for Settings.</div>'; return; }
-    countBadge.textContent='Fetching…';
-    try{
-      const MAX_PAR = 3;
-      const buckets=[];
-      for(let i=0;i<chosen.length;i+=MAX_PAR){
-        const slice=chosen.slice(i,i+MAX_PAR);
-        const res=await Promise.all(slice.map(fetchForSingleTerm));
-        buckets.push(...res);
-      }
-      const mixed = interleaveBuckets(buckets);
-      items = mixed;
-      countBadge.textContent = String(items.length)+' photos';
-      if(!items.length) return;
-      setPage(1); stopAutoplay(); showIndex(0); startAutoplay();
-    }catch(e){
-      countBadge.textContent='0'; showToast('Fetch error: '+e.message, 1800);
-    }
-  }
-  const debouncedApply = (()=>{ let t=null; return ()=>{ clearTimeout(t); t=setTimeout(applySelection, 180); }; })();
-
-  /* ===== Init ===== */
-  populateDefaults();
-  // Auto-select "Norwegian celebs" and load
-  const autoBtn = Array.from(catGrids[0].grid.querySelectorAll('.termBtn')).find(b=>/Norwegian celebs/i.test(b.dataset.term||b.textContent));
-  if(autoBtn) autoBtn.classList.add('selected');
-  setPage(1); applySelection();
-})();
+// keys
+document.addEventListener("keydown",e=>{
+ if(e.code==="Space"){e.preventDefault();autoplay?stop():start();}
+ if(e.altKey&&e.key.toLowerCase()==="c"){clearAll();}
+ if(e.key==="ArrowRight"){let i=pages.findIndex(p=>p.classList.contains("active"));if(i<4)setPage(i+2);}
+ if(e.key==="ArrowLeft"){let i=pages.findIndex(p=>p.classList.contains("active"));if(i>0)setPage(i);}
+});
 </script>
 </body>
 </html>
