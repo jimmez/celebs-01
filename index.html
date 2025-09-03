@@ -3,50 +3,75 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Slideshow v28 — Wikidata/Commons</title>
-<meta name="description" content="Auto-fetch slideshow from Wikidata/Commons. Reliable thumbnails, seamless swaps, auto-apply categories, tags overlay linked to Hide/Show. Defaults: 5s slide / 3s reveal. Swipe pages enabled." />
+<title>Slideshow v29 — Wikidata/Commons</title>
+<meta name="description" content="Auto-fetch slideshow from Wikidata/Commons. Pages always reachable (tabs + swipe), gear toggles Settings, Actors preselected, auto-apply categories, seamless image swaps, centered photos. Defaults: 5s slide / 3s reveal." />
 <style>
   :root { --bg:#0b0f14; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --panel:#0f172a; --muted:#9fb7d6; }
   *{box-sizing:border-box}
   html,body{height:100%}
-  /* Allow horizontal swipes (don’t let the browser consume them) */
-  html, body, main, .page, .stageWrap, .stage { touch-action: pan-y; }
+  /* Let horizontal swipes through; don’t block taps on header/tabs */
+  html, body, main, .page { touch-action: pan-y; }
 
-  body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto auto 1fr auto}
-  header{display:flex; align-items:center; gap:10px; padding:10px 12px; background:#111827; position:sticky; top:0; z-index:50}
+  body{
+    margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial;
+    background:var(--bg); color:var(--fg);
+    display:grid; grid-template-rows:auto auto 1fr auto;
+  }
+
+  /* HEADER + TABS sit ABOVE everything so they’re always clickable */
+  header{display:flex; align-items:center; gap:10px; padding:10px 12px; background:#111827; position:sticky; top:0; z-index:1000}
   h1{font-size:16px; margin:0}
   .sp{flex:1}
   .iconBtn{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer}
   .badge{font-size:12px; padding:4px 8px; border:1px solid rgba(255,255,255,.12); border-radius:999px}
 
-  nav.tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:#0f172a; overflow:auto}
-  .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap}
+  nav.tabs{display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.06); background:#0f172a; overflow:auto; position:sticky; top:48px; z-index:999}
+  .tab{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap; background:#0b1222}
   .tab[aria-selected="true"]{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.6)}
   .page{display:none; height:100%}
   .page.active{display:block}
 
-  /* Page 1 layout */
-  .stageWrap{display:grid; grid-template-columns:95px 1fr; height:calc(100vh - 200px); min-height:360px}
-  .leftRail{display:grid; grid-auto-rows:min-content; align-content:start; gap:10px; padding:10px; background:rgba(59,130,246,.14)}
+  /* PAGE 1 LAYOUT */
+  .stageWrap{
+    display:grid; grid-template-columns:95px 1fr; height:calc(100vh - 210px); min-height:360px; position:relative;
+  }
+  .leftRail{
+    display:grid; grid-auto-rows:min-content; align-content:start; gap:10px; padding:10px;
+    background:rgba(59,130,246,.14); border-right:1px solid rgba(255,255,255,.08); z-index:10;
+  }
   .btn{padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:#1f2937; color:#fff; cursor:pointer; font-weight:700}
   .btn.playing{background:rgba(52,211,153,.28); border-color:rgba(52,211,153,.6)}
   #showThisName, #nextPhoto{height:120px}
-  .stage{position:relative; display:grid; place-items:center; overflow:hidden; background:transparent}
-  .imgwrap{position:relative; width:100%; height:100%; display:grid; place-items:center}
-  img.photo{max-width:88vw; max-height:74vh; object-fit:contain; border-radius:16px; box-shadow:0 12px 32px rgba(0,0,0,.55); opacity:0; transition:opacity .18s ease}
+
+  .stage{
+    position:relative; display:grid; place-items:center; overflow:hidden; background:transparent; z-index:1;
+  }
+  .imgwrap{
+    position:relative; width:100%; height:100%;
+    display:grid; place-items:center; /* perfect centering */
+  }
+  img.photo{
+    max-width:88vw; max-height:74vh; object-fit:contain;
+    border-radius:16px; box-shadow:0 12px 32px rgba(0,0,0,.55);
+    opacity:0; transition:opacity .18s ease;
+  }
   img.photo.show{opacity:1}
 
-  /* Name + Tags overlay */
-  .nameOverlay{position:absolute; left:50%; bottom:6%; transform:translateX(-50%); background:rgba(0,0,0,.72); border:1px solid rgba(255,255,255,.1); padding:12px 16px; border-radius:14px; text-align:center; max-width:min(92%, 880px)}
+  /* Name + Tags overlay (over bottom ~30% area) */
+  .nameOverlay{
+    position:absolute; left:50%; bottom:6%; transform:translateX(-50%);
+    background:rgba(0,0,0,.72); border:1px solid rgba(255,255,255,.1);
+    padding:12px 16px; border-radius:14px; text-align:center; max-width:min(92%, 880px)
+  }
   .nameOverlay.collapsed{display:none}
   .title{font-size:22px; font-weight:800}
   .tags{margin-top:6px; font-size:13px; color:var(--muted)}
 
-  /* Link under gear */
+  /* Link button below gear, top-right */
   .topRight{position:relative}
   #openLink{margin-left:6px; padding:6px 10px; border-radius:10px; background:#1f2937; border:1px solid rgba(255,255,255,.12); color:#fff; cursor:pointer}
 
-  /* Category grids */
+  /* CATEGORY PAGES */
   .builder{padding:12px}
   .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px}
   .termBtn{padding:12px 14px; border-radius:12px; background:#111827; border:1px solid rgba(255,255,255,.22); cursor:pointer; text-align:left; user-select:none; color:#fff}
@@ -55,7 +80,7 @@
 
   .rowActions{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap}
 
-  footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:#9fb7d6; background:#111827}
+  footer{padding:10px 12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; color:#9fb7d6; background:#111827; z-index:1000}
   footer a{color:var(--ok); text-decoration:none}
 
   @media (max-width: 768px){
@@ -66,11 +91,11 @@
 </head>
 <body>
   <header>
-    <h1>🎞️ Slideshow (v28)</h1>
+    <h1>🎞️ Slideshow (v29)</h1>
     <span class="badge" id="countBadge">0 photos</span>
     <div class="sp"></div>
     <div class="topRight">
-      <button class="iconBtn" id="gearBtn" title="Settings (open/close)">⚙️</button>
+      <button class="iconBtn" id="gearBtn" title="Settings (toggle)">⚙️</button>
       <button class="iconBtn" id="openLink" title="Open item/file page">🔗</button>
     </div>
   </header>
@@ -99,7 +124,7 @@
             <div class="title" id="entityName">&nbsp;</div>
             <div class="tags" id="entityTags"></div>
           </div>
-          <!-- Tap zones (don’t block left rail) -->
+          <!-- Tap zones (don’t cover header/tabs thanks to their high z-index) -->
           <div style="position:absolute; inset:0; display:grid; grid-template-columns:95px 1fr; pointer-events:none">
             <div></div>
             <div style="position:relative; pointer-events:auto">
@@ -174,25 +199,30 @@
     tabs.forEach((t,i)=>{ const on=(i===idx-1); t.page.classList.toggle('active', on); t.tab.setAttribute('aria-selected', String(on)); });
   }
   tabs.forEach((t,i)=> t.tab.addEventListener('click',()=> setPage(i+1)));
-  const gearBtn=document.getElementById('gearBtn');
-  gearBtn.addEventListener('click', ()=>{ const i=activePageIndex()+1; setPage(i===5?1:5); });
 
-  // Arrow keys move pages (PC)
+  const gearBtn=document.getElementById('gearBtn');
+  gearBtn.addEventListener('click', ()=>{
+    const i=activePageIndex()+1;
+    setPage(i===5?1:5); // toggle settings on/off with the same gear
+  });
+
+  // Arrow keys move pages (PC) — never block other keys while typing
   document.addEventListener('keydown', (e)=>{
-    if(e.target && (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA')) return;
+    const tag = (e.target && e.target.tagName)||'';
+    if(tag==='INPUT' || tag==='TEXTAREA') return;
     if(e.key==='ArrowRight'){ const i=activePageIndex()+1; if(i<5) setPage(i+1); }
     if(e.key==='ArrowLeft'){ const i=activePageIndex()+1; if(i>1) setPage(i-1); }
   });
 
-  /* ---------- Swipe pages (robust) ---------- */
+  /* ---------- Swipe pages (robust for Samsung Internet) ---------- */
   let tStart=null;
   function onStart(e){
-    const t = e.touches ? e.touches[0] : e;
-    tStart = {x:t.clientX, y:t.clientY, time:Date.now()};
+    const t = (e.touches && e.touches[0]) || e;
+    tStart = {x:t.clientX, y:t.clientY};
   }
   function onEnd(e){
     if(!tStart) return;
-    const t = e.changedTouches ? e.changedTouches[0] : e;
+    const t = (e.changedTouches && e.changedTouches[0]) || e;
     const dx=t.clientX - tStart.x, dy=t.clientY - tStart.y;
     if(Math.abs(dx)>40 && Math.abs(dy)<60){
       const i=activePageIndex()+1;
@@ -201,11 +231,8 @@
     }
     tStart=null;
   }
-  // Bind to the whole document so nothing blocks it
   document.addEventListener('touchstart', onStart, {passive:true});
   document.addEventListener('touchend', onEnd, {passive:true});
-  document.addEventListener('pointerdown', onStart, {passive:true});
-  document.addEventListener('pointerup', onEnd, {passive:true});
 
   /* ---------- Categories (safe presets) ---------- */
   const OCC = {
@@ -230,7 +257,7 @@
     btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0';
     btn.addEventListener('click', ()=>{
       const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c);
-      if(c>=3){ // rename
+      if(c>=3){ // rename in place
         btn.dataset.clicks='0'; btn.classList.add('editing');
         const prev=btn.dataset.term; const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%';
         input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); autoApply(); }});
@@ -239,7 +266,7 @@
       }
       btn.classList.toggle('selected');
       setTimeout(()=>{ btn.dataset.clicks='0'; }, 300);
-      autoApply();
+      autoApply(); // auto-apply immediately on toggle
     });
     gridEl.appendChild(btn);
     return btn;
@@ -261,9 +288,11 @@
   document.getElementById('clearAll2').onclick=clearAll;
   document.getElementById('clearAll3').onclick=clearAll;
   document.getElementById('clearAll4').onclick=clearAll;
-  document.addEventListener('keydown', (e)=>{ if(e.altKey && e.key.toLowerCase()==='c'){ e.preventDefault(); clearAll(); } });
+  document.addEventListener('keydown', (e)=>{
+    if(e.altKey && e.key.toLowerCase()==='c'){ e.preventDefault(); clearAll(); }
+  });
 
-  /* ---------- Timing settings ---------- */
+  /* ---------- Settings ---------- */
   let slideSeconds = 5;       // default
   let nameDelay = 3000;       // default 3s
   document.getElementById('applySettings').onclick = ()=>{
@@ -282,7 +311,7 @@
   function blockForPreset(label){
     if(label in OCC){
       const occ = OCC[label];
-      if(!occ) return H([]); // broad historical figures
+      if(!occ) return H([]); // broad
       return H([ `wdt:P106 wd:${occ} ;` ]);
     }
     if(label in NAT){
@@ -360,11 +389,11 @@ LIMIT ${limit}`;
   const countBadge=document.getElementById('countBadge');
   function setCount(n){ countBadge.textContent = n? `${n} photos` : '0 photos'; }
 
-  let items=[]; let currIndex=-1; let autoplay=false; let timer=null; let currentLink='#'; let fetchGen=0;
+  let items=[]; let currIndex=-1; let autoplay=false; let timer=null; let currentLink='#';
   const imgwrap=document.getElementById('imgwrap'); const nameBar=document.getElementById('nameBar'); const entityName=document.getElementById('entityName'); const entityTags=document.getElementById('entityTags');
 
   function debounce(fn, ms=400){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
-  const autoApply = debounce(applySelection, 300);
+  const autoApply = debounce(applySelection, 250);
 
   function roundRobinFromTermLists(termLists){
     const used=new Set(); const order=[]; const byKey=new Map();
@@ -384,6 +413,7 @@ LIMIT ${limit}`;
     return order;
   }
 
+  let fetchGen=0;
   async function applySelection(){
     const gen = ++fetchGen;
     const terms = selectedTerms();
@@ -408,7 +438,9 @@ LIMIT ${limit}`;
   let currentImg=null; let globalHide=false; let perSlideReveal=false;
 
   function swapIn(img){
-    const prev=currentImg; currentImg=img; currentImg.classList.add('photo','show'); imgwrap.appendChild(currentImg);
+    const prev=currentImg; currentImg=img; currentImg.classList.add('photo','show');
+    // Centering via CSS grid; append ensures it sits in the middle
+    imgwrap.appendChild(currentImg);
     if(prev){ prev.addEventListener('transitionend', ()=>{ try{ imgwrap.removeChild(prev); }catch{} }, {once:true}); prev.classList.remove('show'); }
   }
 
@@ -433,7 +465,7 @@ LIMIT ${limit}`;
       swapIn(img);
       entityName.textContent = it.name;
       entityTags.textContent = (it.tags||[]).join(' + ');
-      nameBar.classList.add('collapsed'); // start hidden
+      nameBar.classList.add('collapsed'); // start hidden; reveal after delay
       const filePageUrl = await fetchFilePageURL(it.fileTitle).catch(()=> '#');
       currentLink = it.itemUrl && it.itemUrl!=='#' ? it.itemUrl : (filePageUrl || '#');
       setTimeout(()=>{
@@ -465,26 +497,24 @@ LIMIT ${limit}`;
   nextBtn.onclick=()=>{ stopAutoplay(); next(); };
   openLinkBtn.onclick=()=>{ if(currentLink && currentLink!=='#'){ window.open(currentLink, '_blank', 'noopener'); } };
 
-  // Tap zones for next/prev (Page 1)
+  // Tap zones for prev/next (Page 1)
   document.getElementById('zonePrev').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
   document.getElementById('zoneNext').addEventListener('click', ()=>{ stopAutoplay(); next(); });
 
-  // Keys: Space toggles play; left/right on Page 1 = prev/next
+  // Keys on Page 1: Space play/pause, left/right prev/next
   document.addEventListener('keydown', (e)=>{
-    if(e.target && (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA')) return;
+    const tag = (e.target && e.target.tagName)||'';
+    if(tag==='INPUT' || tag==='TEXTAREA') return;
     if(e.code==='Space'){ e.preventDefault(); autoplay? stopAutoplay() : startAutoplay(); }
     if(e.key==='ArrowLeft' && activePageIndex()===0){ e.preventDefault(); stopAutoplay(); prev(); }
     if(e.key==='ArrowRight' && activePageIndex()===0){ e.preventDefault(); stopAutoplay(); next(); }
   });
 
   /* ---------- Boot: preselect Actors and apply ---------- */
-  // Select Actors by default
   const actorBtn = [...document.querySelectorAll('#gridOcc .termBtn')].find(b=> (b.dataset.term||b.textContent) === 'Actors');
   if(actorBtn){ actorBtn.classList.add('selected'); }
   // Apply immediately
-  let items=[]; // (declared above, this line just here to clarify)
-  autoApply();
-
+  applySelection();
 })();
 </script>
 </body>
