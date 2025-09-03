@@ -3,12 +3,15 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Slideshow v27 — Wikidata/Commons</title>
-<meta name="description" content="Auto-fetch slideshow from Wikidata/Commons. Reliable thumbnails, seamless swaps, auto-apply categories, tags overlay linked to Hide/Show. Defaults: 5s slide / 3s reveal." />
+<title>Slideshow v28 — Wikidata/Commons</title>
+<meta name="description" content="Auto-fetch slideshow from Wikidata/Commons. Reliable thumbnails, seamless swaps, auto-apply categories, tags overlay linked to Hide/Show. Defaults: 5s slide / 3s reveal. Swipe pages enabled." />
 <style>
   :root { --bg:#0b0f14; --fg:#e5eef7; --accent:#60a5fa; --ok:#34d399; --panel:#0f172a; --muted:#9fb7d6; }
   *{box-sizing:border-box}
   html,body{height:100%}
+  /* Allow horizontal swipes (don’t let the browser consume them) */
+  html, body, main, .page, .stageWrap, .stage { touch-action: pan-y; }
+
   body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--fg); display:grid; grid-template-rows:auto auto 1fr auto}
   header{display:flex; align-items:center; gap:10px; padding:10px 12px; background:#111827; position:sticky; top:0; z-index:50}
   h1{font-size:16px; margin:0}
@@ -63,7 +66,7 @@
 </head>
 <body>
   <header>
-    <h1>🎞️ Slideshow (v27)</h1>
+    <h1>🎞️ Slideshow (v28)</h1>
     <span class="badge" id="countBadge">0 photos</span>
     <div class="sp"></div>
     <div class="topRight">
@@ -97,9 +100,9 @@
             <div class="tags" id="entityTags"></div>
           </div>
           <!-- Tap zones (don’t block left rail) -->
-          <div style="position:absolute; inset:0; display:grid; grid-template-columns:95px 1fr">
+          <div style="position:absolute; inset:0; display:grid; grid-template-columns:95px 1fr; pointer-events:none">
             <div></div>
-            <div style="position:relative">
+            <div style="position:relative; pointer-events:auto">
               <div id="zonePrev" style="position:absolute;left:0;top:0;bottom:0;width:35%"></div>
               <div id="zoneNext" style="position:absolute;right:0;top:0;bottom:0;width:65%"></div>
             </div>
@@ -181,18 +184,38 @@
     if(e.key==='ArrowLeft'){ const i=activePageIndex()+1; if(i>1) setPage(i-1); }
   });
 
+  /* ---------- Swipe pages (robust) ---------- */
+  let tStart=null;
+  function onStart(e){
+    const t = e.touches ? e.touches[0] : e;
+    tStart = {x:t.clientX, y:t.clientY, time:Date.now()};
+  }
+  function onEnd(e){
+    if(!tStart) return;
+    const t = e.changedTouches ? e.changedTouches[0] : e;
+    const dx=t.clientX - tStart.x, dy=t.clientY - tStart.y;
+    if(Math.abs(dx)>40 && Math.abs(dy)<60){
+      const i=activePageIndex()+1;
+      if(dx<0 && i<5) setPage(i+1);
+      if(dx>0 && i>1) setPage(i-1);
+    }
+    tStart=null;
+  }
+  // Bind to the whole document so nothing blocks it
+  document.addEventListener('touchstart', onStart, {passive:true});
+  document.addEventListener('touchend', onEnd, {passive:true});
+  document.addEventListener('pointerdown', onStart, {passive:true});
+  document.addEventListener('pointerup', onEnd, {passive:true});
+
   /* ---------- Categories (safe presets) ---------- */
-  // Occupations
   const OCC = {
     'Actors':'Q33999','Singers':'Q177220','Musicians':'Q639669','Writers':'Q36180','Models':'Q4610556',
     'Politicians':'Q82955','Directors':'Q2526255','Comedians':'Q245068','Scientists':'Q901','Inventors':'Q131524',
     'Historical figures': null
   };
-  // Nationalities
   const NAT = {
     'Norwegian':'Q20','Swedish':'Q34','Danish':'Q35','German':'Q183','French':'Q142','Spanish':'Q29','British':'Q145','American':'Q30'
   };
-  // Characters/Objects
   const OBJ = [
     'Famous movie characters','Famous cartoon characters','Superheroes','Video game characters',
     'Cars','Musical instruments','Tools','Household appliances'
@@ -207,14 +230,14 @@
     btn.type='button'; btn.className='termBtn'; btn.textContent=label; btn.dataset.term=label; btn.dataset.clicks='0';
     btn.addEventListener('click', ()=>{
       const c=(+btn.dataset.clicks||0)+1; btn.dataset.clicks=String(c);
-      if(c>=3){ // rename (triple click)
+      if(c>=3){ // rename
         btn.dataset.clicks='0'; btn.classList.add('editing');
         const prev=btn.dataset.term; const input=document.createElement('input'); input.type='text'; input.value=prev; input.style.width='100%';
         input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); autoApply(); }});
         input.addEventListener('blur',()=>{ const v=input.value.trim()||prev; btn.dataset.term=v; btn.textContent=v; btn.classList.remove('editing'); autoApply(); });
         btn.innerHTML=''; btn.appendChild(input); input.focus(); input.select(); return;
       }
-      btn.classList.toggle('selected'); // select/deselect
+      btn.classList.toggle('selected');
       setTimeout(()=>{ btn.dataset.clicks='0'; }, 300);
       autoApply();
     });
@@ -243,12 +266,9 @@
   /* ---------- Timing settings ---------- */
   let slideSeconds = 5;       // default
   let nameDelay = 3000;       // default 3s
-  const speedInput=document.getElementById('speedInput');
-  const revealInput=document.getElementById('revealInput');
-  const applySettings=document.getElementById('applySettings');
-  applySettings.onclick = ()=>{
-    const s = Math.max(0.2, +speedInput.value || 5);
-    const n = Math.max(0, +revealInput.value || 3);
+  document.getElementById('applySettings').onclick = ()=>{
+    const s = Math.max(0.2, +document.getElementById('speedInput').value || 5);
+    const n = Math.max(0, +document.getElementById('revealInput').value || 3);
     slideSeconds = s; nameDelay = Math.round(n*1000);
     document.getElementById('settingsNote').textContent = `Applied: slide ${s.toFixed(1)}s, reveal ${n.toFixed(1)}s.`;
     if(autoplay) startAutoplay();
@@ -259,11 +279,10 @@
   function F(lines){ return `{ ?person wdt:P18 ?image . ${lines.join(' ')} BIND(?person AS ?entity) }`; }
   function T(lines){ return `{ ?thing ${lines.join(' ')} wdt:P18 ?image . BIND(?thing AS ?entity) }`; }
 
-  // Preset mapping -> SPARQL block
   function blockForPreset(label){
     if(label in OCC){
       const occ = OCC[label];
-      if(!occ) return H([]); // Historical figures broad (any notable humans with images)
+      if(!occ) return H([]); // broad historical figures
       return H([ `wdt:P106 wd:${occ} ;` ]);
     }
     if(label in NAT){
@@ -300,7 +319,6 @@ LIMIT ${limit}`;
   }
 
   function thumbFromImageValue(imageVal){
-    // imageVal is either "File:..." or a full URL pointing to a File page or original.
     let fileName = imageVal;
     try{
       if(fileName.startsWith('http')){
@@ -313,7 +331,6 @@ LIMIT ${limit}`;
       fileName = 'File:' + fileName.replace(/^.*File:/,'');
     }
     const bare = encodeURIComponent(fileName.replace(/^File:/,''));
-    // Use w/thumb.php to force a rasterized thumbnail at width=1600 (works for SVG/TIFF too)
     return {
       imageUrl: `https://commons.wikimedia.org/w/thumb.php?f=${bare}&w=1600`,
       fileTitle: `File:${fileName.replace(/^File:/,'')}`
@@ -326,7 +343,7 @@ LIMIT ${limit}`;
     if(!imageVal) return null;
     const { imageUrl, fileTitle } = thumbFromImageValue(imageVal);
     const itemUrl = r.entity?.value || '#';
-    const key = itemUrl && itemUrl!=='#' ? itemUrl : imageUrl; // entity key for dedup
+    const key = itemUrl && itemUrl!=='#' ? itemUrl : imageUrl;
     return { key, name, imageUrl, fileTitle, itemUrl, tags:[] };
   }
 
@@ -339,40 +356,29 @@ LIMIT ${limit}`;
     return rows.map(normalizeRow).filter(Boolean).map(x=>({ ...x, tags:[term] }));
   }
 
-  /* ---------- Apply selection (auto; balanced mix with tag merge) ---------- */
+  /* ---------- Auto-apply selection (balanced mix) ---------- */
   const countBadge=document.getElementById('countBadge');
   function setCount(n){ countBadge.textContent = n? `${n} photos` : '0 photos'; }
 
   let items=[]; let currIndex=-1; let autoplay=false; let timer=null; let currentLink='#'; let fetchGen=0;
   const imgwrap=document.getElementById('imgwrap'); const nameBar=document.getElementById('nameBar'); const entityName=document.getElementById('entityName'); const entityTags=document.getElementById('entityTags');
 
-  // Debounce helper
   function debounce(fn, ms=400){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
-  const autoApply = debounce(applySelection, 350);
+  const autoApply = debounce(applySelection, 300);
 
   function roundRobinFromTermLists(termLists){
-    const used=new Set();
-    const order=[];
-    const byKey=new Map();
+    const used=new Set(); const order=[]; const byKey=new Map();
     for(const list of termLists){
       for(const it of list){
-        if(byKey.has(it.key)){
-          const ref=byKey.get(it.key);
-          it.tags.forEach(t=>{ if(!ref.tags.includes(t)) ref.tags.push(t); });
-        }else{
-          byKey.set(it.key, {...it});
-        }
+        if(byKey.has(it.key)){ const ref=byKey.get(it.key); it.tags.forEach(t=>{ if(!ref.tags.includes(t)) ref.tags.push(t); }); }
+        else { byKey.set(it.key, {...it}); }
       }
     }
     const queues = termLists.map(list => list.map(it=>it.key));
     const maxLen=Math.max(0, ...queues.map(q=>q.length));
     for(let i=0;i<maxLen;i++){
       for(const q of queues){
-        const k = q[i];
-        if(k && !used.has(k)){
-          used.add(k);
-          order.push(byKey.get(k));
-        }
+        const k=q[i]; if(k && !used.has(k)){ used.add(k); order.push(byKey.get(k)); }
       }
     }
     return order;
@@ -384,11 +390,8 @@ LIMIT ${limit}`;
     if(!terms.length){ items=[]; currIndex=-1; setCount(0); imgwrap.innerHTML=''; return; }
     const termLists=[];
     for(const t of terms){
-      try{
-        const res = await queryForTerm(t);
-        if(gen!==fetchGen) return;
-        termLists.push(res);
-      }catch(e){ console.warn('term failed', t, e); }
+      try{ const res = await queryForTerm(t); if(gen!==fetchGen) return; termLists.push(res); }
+      catch(e){ console.warn('term failed', t, e); }
     }
     const mixed = roundRobinFromTermLists(termLists);
     if(gen!==fetchGen) return;
@@ -401,7 +404,7 @@ LIMIT ${limit}`;
     startAutoplay();
   }
 
-  /* ---------- Slideshow controls + overlays ---------- */
+  /* ---------- Slideshow ---------- */
   let currentImg=null; let globalHide=false; let perSlideReveal=false;
 
   function swapIn(img){
@@ -409,7 +412,7 @@ LIMIT ${limit}`;
     if(prev){ prev.addEventListener('transitionend', ()=>{ try{ imgwrap.removeChild(prev); }catch{} }, {once:true}); prev.classList.remove('show'); }
   }
 
-  async function fetchAttributionURL(fileTitle){
+  async function fetchFilePageURL(fileTitle){
     try{
       const url='https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=url&titles='+encodeURIComponent(fileTitle);
       const res=await fetch(url); const data=await res.json();
@@ -431,7 +434,7 @@ LIMIT ${limit}`;
       entityName.textContent = it.name;
       entityTags.textContent = (it.tags||[]).join(' + ');
       nameBar.classList.add('collapsed'); // start hidden
-      const filePageUrl = await fetchAttributionURL(it.fileTitle).catch(()=> '#');
+      const filePageUrl = await fetchFilePageURL(it.fileTitle).catch(()=> '#');
       currentLink = it.itemUrl && it.itemUrl!=='#' ? it.itemUrl : (filePageUrl || '#');
       setTimeout(()=>{
         if(!globalHide || perSlideReveal){ nameBar.classList.remove('collapsed'); }
@@ -440,7 +443,7 @@ LIMIT ${limit}`;
       downloadLink.href = it.imageUrl; downloadLink.download = it.fileTitle.replace(/^File:/,'');
     };
     img.onerror = ()=>{ console.warn('image failed, skipping'); next(); };
-    img.src = it.imageUrl; // from thumb.php — reliable across formats
+    img.src = it.imageUrl;
   }
   function next(){ showIndex((currIndex+1)%items.length); }
   function prev(){ showIndex((currIndex-1+items.length)%items.length); }
@@ -462,11 +465,11 @@ LIMIT ${limit}`;
   nextBtn.onclick=()=>{ stopAutoplay(); next(); };
   openLinkBtn.onclick=()=>{ if(currentLink && currentLink!=='#'){ window.open(currentLink, '_blank', 'noopener'); } };
 
-  // Tap zones for next/prev
+  // Tap zones for next/prev (Page 1)
   document.getElementById('zonePrev').addEventListener('click', ()=>{ stopAutoplay(); prev(); });
   document.getElementById('zoneNext').addEventListener('click', ()=>{ stopAutoplay(); next(); });
 
-  // Keys: Space play/pause. Left/Right arrows for pages handled above; slideshow left/right on Page 1.
+  // Keys: Space toggles play; left/right on Page 1 = prev/next
   document.addEventListener('keydown', (e)=>{
     if(e.target && (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA')) return;
     if(e.code==='Space'){ e.preventDefault(); autoplay? stopAutoplay() : startAutoplay(); }
@@ -474,20 +477,14 @@ LIMIT ${limit}`;
     if(e.key==='ArrowRight' && activePageIndex()===0){ e.preventDefault(); stopAutoplay(); next(); }
   });
 
-  // Swipe pages
-  let tStart=null;
-  document.addEventListener('touchstart', (e)=>{ const t=e.changedTouches[0]; tStart={x:t.clientX,y:t.clientY}; }, {passive:true});
-  document.addEventListener('touchend', (e)=>{ if(!tStart) return; const t=e.changedTouches[0]; const dx=t.clientX-tStart.x; const dy=t.clientY-tStart.y; if(Math.abs(dx)>40 && Math.abs(dy)<60){ const i=activePageIndex()+1; if(dx<0 && i<5) setPage(i+1); if(dx>0 && i>1) setPage(i-1); } tStart=null; }, {passive:true});
+  /* ---------- Boot: preselect Actors and apply ---------- */
+  // Select Actors by default
+  const actorBtn = [...document.querySelectorAll('#gridOcc .termBtn')].find(b=> (b.dataset.term||b.textContent) === 'Actors');
+  if(actorBtn){ actorBtn.classList.add('selected'); }
+  // Apply immediately
+  let items=[]; // (declared above, this line just here to clarify)
+  autoApply();
 
-  /* ---------- Boot ---------- */
-  const countBadge=document.getElementById('countBadge');
-  function setCount(n){ countBadge.textContent = n? `${n} photos` : '0 photos'; }
-
-  // Preselect Norwegian to give you something right away (optional; remove if you don't want defaults)
-  // document.querySelectorAll('#gridNat .termBtn').forEach(b=>{ if(b.dataset.term==='Norwegian'){ b.classList.add('selected'); }});
-  // autoApply();
-
-  setPage(1);
 })();
 </script>
 </body>
